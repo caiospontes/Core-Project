@@ -52,9 +52,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
-  { id: '2', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
-  { id: '3', version: '2.5', date: '2024-01-27', title: 'Gestão Completa', content: 'Painel administrativo e editor de templates.' },
+  { id: '1', version: '2.8', date: '2024-01-30', title: 'Sincronização de Tags', content: 'Formulários agora refletem exatamente as tags configuradas no sistema.' },
+  { id: '2', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
+  { id: '3', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
 ];
 
 const TOOLS_CONFIG = {
@@ -187,13 +187,13 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
-    if (!dbReady) {
-       alert("Aguarde a conexão com o banco de dados...");
-       return;
-    }
-    const devUser = users.find(u => u.email === 'dev@core.teste');
+    // Permite login mesmo se DB não estiver pronto, usando lista padrão local como fallback
+    const devUser = users.length > 0 
+        ? users.find(u => u.email === 'dev@core.teste') 
+        : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
+    
     if (devUser) onLogin(devUser);
-    else alert('Usuário DEV não encontrado no banco de dados. Certifique-se de que a inicialização do DB ocorreu.');
+    else alert('Usuário DEV não encontrado.');
   };
 
   return (
@@ -305,17 +305,18 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
+              const content = ev.target.result;
               await setDoc(getDocRef('templates', targetModule), {
                   name: file.name,
-                  content: ev.target.result,
+                  content: content,
                   date: new Date().toLocaleDateString(),
                   type: 'html'
               });
-              setUploadStatus('Sucesso!');
+              setUploadStatus('Sucesso! HTML carregado e salvo na nuvem.');
           };
           reader.readAsText(file);
       } else {
-          setUploadStatus('Erro: Apenas .html');
+          setUploadStatus('Erro: Apenas arquivos .html são permitidos.');
       }
   };
 
@@ -364,7 +365,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       }
   };
 
-  // Handler do Painel de Tags (Aba Tags)
   const handleSaveTagPanel = async (e) => {
       e.preventDefault();
       const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTagId, editingTagId);
@@ -376,7 +376,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       }
   };
 
-  // Handler do Editor de Tags (Dentro do Editor HTML)
   const handleSaveTagInEditor = async (e) => {
     e.preventDefault();
     const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
@@ -395,7 +394,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   const handleSaveDelimiters = async () => {
     await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
-    alert(`Delimitadores atualizados.`);
+    alert(`Delimitadores atualizados para: ${tempDelimiters.prefix}TAG${tempDelimiters.suffix}`);
   };
 
   // --- GESTÃO DE USUÁRIOS (Firestore) ---
@@ -461,8 +460,10 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       const text = textarea.value;
       setHtmlContent(text.substring(0, start) + tagText + text.substring(end));
     }
+
     const currentModule = editingTemplate;
     const currentTags = tagsConfig[currentModule] || [];
+    
     if (!currentTags.some(t => t.id === cleanId)) {
         const updatedTags = [...currentTags, { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' }];
         await setDoc(getDocRef('tags', currentModule), { list: updatedTags });
@@ -657,7 +658,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                                         </button>
                                         <div className="hidden group-hover:flex gap-1">
                                             <button onClick={() => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); }} className="text-blue-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                                            <button onClick={() => handleDeleteTag(tag.id, editingTemplate)} className="text-red-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                            <button onClick={() => handleDeleteTag(tag.id, editingTemplate)} className="text-red-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                                         </div>
                                     </div>
                                 ))}
@@ -718,31 +719,35 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 // ============================================================================
 const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
   const [formData, setFormData] = useState({});
-  const [parsedTags, setParsedTags] = useState([]);
+  const [inputs, setInputs] = useState([]);
 
+  // Sincroniza os inputs com a configuração de tags
   useEffect(() => {
-    const content = template?.content || DEFAULT_HTML_TEMPLATE;
-    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`${escapeRegExp(delimiters.prefix)}([A-Z0-9_]+)${escapeRegExp(delimiters.suffix)}`, 'g');
-    const foundTags = new Set();
-    let match;
-    while ((match = regex.exec(content)) !== null) foundTags.add(match[1]);
-    const tagsArray = Array.from(foundTags);
-    setParsedTags(tagsArray);
-    const initialData = {};
-    tagsArray.forEach(tag => {
-        initialData[tag] = '';
-        if(tag === 'DATA') initialData[tag] = new Date().toISOString().split('T')[0];
+    // Lista de tags configuradas para o módulo atual
+    const moduleTags = tagsConfig[moduleId] || [];
+    setInputs(moduleTags);
+
+    // Inicializa o estado do formulário
+    const initialData = { ...formData };
+    moduleTags.forEach(tag => {
+        if (initialData[tag.id] === undefined) initialData[tag.id] = '';
+        if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
     });
     setFormData(initialData);
-  }, [template, delimiters]);
+
+  }, [tagsConfig, moduleId]);
+
+  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
 
   const renderDocument = () => {
       let html = template?.content || DEFAULT_HTML_TEMPLATE;
-      parsedTags.forEach(tag => {
-          let val = formData[tag] || '';
-          if(tag === 'DATA' && val) val = val.split('-').reverse().join('/');
-          html = html.split(`${delimiters.prefix}${tag}${delimiters.suffix}`).join(val);
+      // Substitui TODAS as tags configuradas encontradas no template
+      inputs.forEach(tag => {
+          let val = formData[tag.id] || '';
+          if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
+          // Regex para garantir substituição global segura
+          const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
+          html = html.split(tagPattern).join(val);
       });
       return <div dangerouslySetInnerHTML={{ __html: html }} />;
   };
@@ -755,16 +760,18 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
           <button onClick={() => window.print()} className="bg-[#002233] text-white px-3 py-1 rounded text-xs font-bold">IMPRIMIR</button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 custom-scroll">
-            {parsedTags.sort().map(tag => {
-                 const moduleTags = tagsConfig[moduleId] || [];
-                 const tagConfig = moduleTags.find(t => t.id === tag);
-                 return (
-                  <div key={tag} className="mb-3">
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{tagConfig ? tagConfig.label : tag}</label>
-                      <input className="w-full border p-2 rounded text-sm" value={formData[tag] || ''} onChange={e => setFormData({...formData, [tag]: e.target.value})} />
-                  </div>
-                 );
-            })}
+            {inputs.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma tag configurada para este módulo.</p>}
+            {inputs.map(tag => (
+                <div key={tag.id} className="mb-3">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{tag.label}</label>
+                    <input 
+                        type={tag.type} 
+                        className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none" 
+                        value={formData[tag.id] || ''} 
+                        onChange={e => handleChange(tag.id, e.target.value)} 
+                    />
+                </div>
+            ))}
         </div>
       </div>
       <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
