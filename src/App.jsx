@@ -31,14 +31,49 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = firebaseConfig.projectId;
+// Initialize Firebase only once
+let app;
+let auth;
+let db;
+let appId;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  appId = firebaseConfig.projectId;
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+}
 
 // Paths
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
+
+// ============================================================================
+// COMPONENTE: SAFE PREVIEW (ISOLAMENTO DE CSS)
+// ============================================================================
+const SafePreview = ({ html }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const shadowRoot = containerRef.current.shadowRoot || containerRef.current.attachShadow({ mode: 'open' });
+    
+    shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; width: 100%; height: 100%; }
+        img { max-width: 100%; height: auto; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        table { border-collapse: collapse; }
+      </style>
+      ${html}
+    `;
+  }, [html]);
+
+  return <div ref={containerRef} className="w-full h-full"></div>;
+};
 
 // ============================================================================
 // DADOS PADRÃO (Seeds)
@@ -115,7 +150,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Login com E-mail/Senha (Simulado)
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
@@ -128,7 +162,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }
 
     setTimeout(() => {
-      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
         setError('E-mail não encontrado na lista de convites.');
@@ -142,15 +176,11 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         return;
       }
 
-      // Verificação de Domínio removida para permitir testes mais flexíveis se o usuário já estiver na lista
-      // if (!email.toLowerCase().endsWith('@totvs.com.br') && !email.includes('core.teste')) { ... }
-
       onLogin(foundUser);
       setLoading(false);
     }, 800);
   };
 
-  // Login com Google
   const handleGoogleLogin = async () => {
     if (!dbReady) return alert('Aguarde a conexão com o sistema.');
     
@@ -162,8 +192,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
         
-        // Verifica se o e-mail do Google está na lista de usuários permitidos (Convite)
-        const foundUser = users.find(u => u.email.toLowerCase() === googleUser.email.toLowerCase());
+        const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
 
         if (foundUser) {
             if (!foundUser.active) {
@@ -187,7 +216,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
-    // Permite login mesmo se DB não estiver pronto, usando lista padrão local como fallback
     const devUser = users.length > 0 
         ? users.find(u => u.email === 'dev@core.teste') 
         : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
@@ -295,7 +323,9 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // --- TEMPLATE & EDITOR ---
+  // --- Handlers (Firestore wrappers) ---
+  // Nota: Estas funções são "props" ou context em um app real. Aqui simulamos a chamada direta ao DB.
+  
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -312,11 +342,11 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                   date: new Date().toLocaleDateString(),
                   type: 'html'
               });
-              setUploadStatus('Sucesso! HTML carregado e salvo na nuvem.');
+              setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
       } else {
-          setUploadStatus('Erro: Apenas arquivos .html são permitidos.');
+          setUploadStatus('Erro: Apenas .html');
       }
   };
 
@@ -340,7 +370,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
-  // --- GESTÃO DE TAGS (Firestore) ---
   const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || [];
@@ -394,10 +423,9 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   const handleSaveDelimiters = async () => {
     await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
-    alert(`Delimitadores atualizados para: ${tempDelimiters.prefix}TAG${tempDelimiters.suffix}`);
+    alert(`Delimitadores atualizados.`);
   };
 
-  // --- GESTÃO DE USUÁRIOS (Firestore) ---
   const handleSaveUser = async (e) => {
     e.preventDefault();
     const userId = editingUserId || Date.now().toString();
@@ -429,7 +457,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
-  // --- CHANGELOG (Firestore) ---
   const handleSaveLog = async (e) => {
       e.preventDefault();
       const logId = editingLogId || Date.now().toString();
@@ -448,7 +475,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id));
   };
 
-  // --- EDITOR SAVE ---
   const handleCreateCustomTagInEditor = async (tagInput) => {
     if(!tagInput) return;
     const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
@@ -460,10 +486,8 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       const text = textarea.value;
       setHtmlContent(text.substring(0, start) + tagText + text.substring(end));
     }
-
     const currentModule = editingTemplate;
     const currentTags = tagsConfig[currentModule] || [];
-    
     if (!currentTags.some(t => t.id === cleanId)) {
         const updatedTags = [...currentTags, { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' }];
         await setDoc(getDocRef('tags', currentModule), { list: updatedTags });
@@ -483,33 +507,19 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      {/* ADMIN SIDEBAR */}
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-[#002233]">Administração</h2>
             <p className="text-xs text-slate-400">Painel de Controle</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                Templates
-            </button>
-            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                Configurar Tags
-            </button>
-            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                Usuários
-            </button>
-            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Changelog
-            </button>
+            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Templates</button>
+            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Configurar Tags</button>
+            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Usuários</button>
+            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Changelog</button>
         </nav>
       </div>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
             {/* TEMPLATES */}
@@ -674,7 +684,9 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                     <div className="w-[35%] bg-white border-l border-gray-300 flex flex-col">
                         <div className="bg-gray-100 p-2 text-xs font-bold text-gray-500 border-b text-center">Preview</div>
                         <div className="flex-1 p-4 overflow-y-auto bg-gray-200">
-                            <div className="bg-white shadow-lg min-h-[29.7cm] p-[1cm] text-[10px]" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+                            <div className="w-full h-full">
+                                <SafePreview html={htmlContent} />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -720,14 +732,12 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
   const [formData, setFormData] = useState({});
   const [inputs, setInputs] = useState([]);
-
+  
   // Sincroniza os inputs com a configuração de tags
   useEffect(() => {
-    // Lista de tags configuradas para o módulo atual
     const moduleTags = tagsConfig[moduleId] || [];
     setInputs(moduleTags);
 
-    // Inicializa o estado do formulário
     const initialData = { ...formData };
     moduleTags.forEach(tag => {
         if (initialData[tag.id] === undefined) initialData[tag.id] = '';
@@ -741,15 +751,15 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
 
   const renderDocument = () => {
       let html = template?.content || DEFAULT_HTML_TEMPLATE;
-      // Substitui TODAS as tags configuradas encontradas no template
+      // Substitui as tags
       inputs.forEach(tag => {
           let val = formData[tag.id] || '';
           if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
-          // Regex para garantir substituição global segura
           const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
+          // Usar split/join é mais seguro que regex para strings simples
           html = html.split(tagPattern).join(val);
       });
-      return <div dangerouslySetInnerHTML={{ __html: html }} />;
+      return html; // Retorna string HTML processada
   };
 
   return (
@@ -776,7 +786,7 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
       </div>
       <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
         <div className="print-area bg-white shadow-2xl w-[21cm] min-h-[29.7cm] p-[1cm] relative mx-auto origin-top">
-            {renderDocument()}
+            <SafePreview html={renderDocument()} />
         </div>
       </div>
     </div>
