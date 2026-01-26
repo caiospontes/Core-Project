@@ -127,30 +127,20 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }
 
     setTimeout(() => {
-      // 1. Verificação Estrita de Existência (Convite)
-      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
-        setError('Acesso negado. Este e-mail não possui um convite ativo.');
+        setError('E-mail não encontrado na lista de convites.');
         setLoading(false);
         return;
       }
 
-      // 2. Verificação de Status da Conta
       if (!foundUser.active) {
-        setError('Sua conta foi desativada pelo administrador.');
+        setError('Conta desativada.');
         setLoading(false);
         return;
       }
 
-      // 3. Verificação de Domínio (Camada extra de segurança)
-      if (!email.toLowerCase().endsWith('@totvs.com.br') && !email.includes('core.teste')) {
-        setError('Domínio não autorizado. Use seu e-mail corporativo @totvs.com.br');
-        setLoading(false);
-        return;
-      }
-
-      // Login bem sucedido
       onLogin(foundUser);
       setLoading(false);
     }, 800);
@@ -168,14 +158,13 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
         
-        // Verifica se o e-mail do Google está na lista de usuários permitidos (Convite)
-        const foundUser = users.find(u => u.email.toLowerCase() === googleUser.email.toLowerCase());
+        // Verifica se o e-mail do Google está na lista de usuários permitidos
+        const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
 
         if (foundUser) {
             if (!foundUser.active) {
                 setError('Sua conta foi desativada pelo administrador.');
-                await signOut(auth); // Desloga se não tiver permissão no app
-                // Re-conecta anonimamente para manter leitura do banco
+                await signOut(auth); 
                 signInAnonymously(auth);
             } else {
                 onLogin(foundUser);
@@ -200,7 +189,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }
     const devUser = users.find(u => u.email === 'dev@core.teste');
     if (devUser) onLogin(devUser);
-    else alert('Usuário DEV não encontrado no banco de dados. Certifique-se de que a inicialização do DB ocorreu.');
+    else alert('Usuário DEV não encontrado.');
   };
 
   return (
@@ -220,7 +209,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
           
-          {/* LOGIN COM GOOGLE */}
           <button 
             type="button" 
             onClick={handleGoogleLogin} 
@@ -276,50 +264,46 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => {
   const [activeTab, setActiveTab] = useState('templates');
   
-  // States Templates
+  // States
   const [targetModule, setTargetModule] = useState('desligamento'); 
   const [uploadStatus, setUploadStatus] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); 
   const [htmlContent, setHtmlContent] = useState('');
   const textAreaRef = useRef(null);
 
-  // States Users
   const [showUserModal, setShowUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
   const [editingUserId, setEditingUserId] = useState(null);
 
-  // States Tags
   const [editingTagId, setEditingTagId] = useState(null);
   const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text' });
   const [tagModuleFilter, setTagModuleFilter] = useState('desligamento');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
 
-  // States Changelog
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // --- TEMPLATE & EDITOR ---
+  // --- Handlers (Firestore) ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
-      if(!targetModule) return alert("Selecione um módulo primeiro.");
+      if(!targetModule) return alert("Selecione um módulo.");
       if(!file) return;
 
       if(file.name.endsWith('.html')) {
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
-              const content = ev.target.result;
               await setDoc(getDocRef('templates', targetModule), {
                   name: file.name,
-                  content: content,
+                  content: ev.target.result,
                   date: new Date().toLocaleDateString(),
                   type: 'html'
               });
-              setUploadStatus('Sucesso! HTML carregado e salvo na nuvem.');
+              setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
       } else {
-          setUploadStatus('Erro: Apenas arquivos .html são permitidos.');
+          setUploadStatus('Erro: Apenas .html');
       }
   };
 
@@ -343,7 +327,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
-  // --- GESTÃO DE TAGS (Firestore) ---
   const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || [];
@@ -386,19 +369,16 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   const handleSaveDelimiters = async () => {
     await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
-    alert(`Delimitadores atualizados para: ${tempDelimiters.prefix}TAG${tempDelimiters.suffix}`);
+    alert(`Delimitadores atualizados.`);
   };
 
-  // --- GESTÃO DE USUÁRIOS (Firestore) ---
   const handleSaveUser = async (e) => {
     e.preventDefault();
     const userId = editingUserId || Date.now().toString();
     const userData = { ...userForm, id: userId, active: true };
     if (userData.role === 'admin') userData.permissions = ['all'];
 
-    if (!editingUserId && users.some(u => u.email === userForm.email)) {
-        return alert('E-mail já cadastrado.');
-    }
+    if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail já cadastrado.');
 
     await setDoc(getDocRef('users', userId), userData);
     setShowUserModal(false);
@@ -423,7 +403,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
-  // --- CHANGELOG (Firestore) ---
   const handleSaveLog = async (e) => {
       e.preventDefault();
       const logId = editingLogId || Date.now().toString();
@@ -433,21 +412,13 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       setNewLog({ version: '', date: '', title: '', content: '' });
   };
 
-  const handleEditLogClick = (log) => {
-      setNewLog(log);
-      setEditingLogId(log.id);
-  };
-
   const handleDeleteLog = async (id) => {
-      if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id));
+      if(window.confirm('Remover?')) await deleteDoc(getDocRef('changelog', id));
   };
 
-  // --- EDITOR SAVE ---
   const handleCreateCustomTagInEditor = async (tagInput) => {
     if(!tagInput) return;
     const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-    
-    // Inserir no editor
     const tagText = `${delimiters.prefix}${cleanId}${delimiters.suffix}`;
     const textarea = textAreaRef.current;
     if (textarea) {
@@ -456,11 +427,8 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       const text = textarea.value;
       setHtmlContent(text.substring(0, start) + tagText + text.substring(end));
     }
-
-    // Salvar na configuração de tags
     const currentModule = editingTemplate;
     const currentTags = tagsConfig[currentModule] || [];
-    
     if (!currentTags.some(t => t.id === cleanId)) {
         const updatedTags = [...currentTags, { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' }];
         await setDoc(getDocRef('tags', currentModule), { list: updatedTags });
@@ -475,338 +443,158 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
         type: 'html'
     });
     setEditingTemplate(null);
-    alert('Template salvo no Firebase!');
+    alert('Salvo!');
   };
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      {/* ADMIN SIDEBAR */}
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-[#002233]">Administração</h2>
-            <p className="text-xs text-slate-400">Painel de Controle</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                Templates
-            </button>
-            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                Configurar Tags
-            </button>
-            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                Usuários
-            </button>
-            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Changelog
-            </button>
+            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Templates</button>
+            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Configurar Tags</button>
+            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Usuários</button>
+            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Changelog</button>
         </nav>
       </div>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
-            
-            {/* VIEW: TEMPLATES */}
+            {/* TEMPLATES */}
             {activeTab === 'templates' && (
-                <div className="space-y-6 animate-fadeIn">
-                    <h2 className="text-2xl font-bold text-slate-800">Gerenciamento de Templates</h2>
+                <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <div className="flex gap-4 items-end mb-4">
-                            <div className="flex-1">
-                                <label className="text-xs font-bold text-slate-400">Módulo</label>
-                                <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="w-full border p-2 rounded text-sm mt-1 outline-none focus:border-[#00DBFF]">
-                                    {Object.entries(TOOLS_CONFIG).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex-1">
-                                <label className="text-xs font-bold text-slate-400">Importar .HTML</label>
-                                <input type="file" accept=".html" onChange={handleFileUpload} className="block w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                            </div>
+                        <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
+                        <div className="flex gap-4">
+                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm">
+                                {Object.entries(TOOLS_CONFIG).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                            </select>
+                            <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
-                        {uploadStatus && <p className="text-xs font-bold text-blue-600 mb-4">{uploadStatus}</p>}
+                        {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-sm text-slate-500 uppercase mb-4">Templates Ativos</h3>
-                        <div className="space-y-3">
-                            {Object.entries(TOOLS_CONFIG).map(([key, tool]) => (
-                                <div key={key} className="flex justify-between items-center p-3 border rounded-lg hover:bg-slate-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-2 h-2 rounded-full ${tool.active ? 'bg-green-500' : 'bg-red-300'}`}></div>
-                                        <div>
-                                            <p className="font-bold text-sm text-slate-700">{tool.label}</p>
-                                            <p className="text-xs text-slate-400">{templates[key] ? `Custom: ${templates[key].name}` : 'Padrão do Sistema'}</p>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-4 py-2 rounded text-sm font-bold hover:bg-[#00334d] flex items-center gap-2">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                        Editor HTML
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                    <div className="grid gap-3">
+                        {Object.entries(TOOLS_CONFIG).map(([key, tool]) => (
+                            <div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center">
+                                <div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div>
+                                <button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar</button>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
 
-            {/* VIEW: TAGS */}
+            {/* TAGS */}
             {activeTab === 'tags' && (
-                <div className="space-y-6 animate-fadeIn">
-                    <h2 className="text-2xl font-bold text-slate-800">Configuração de Tags</h2>
-                    <div className="flex gap-6 items-start">
-                         <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4">
-                            <div className="mb-6 border-b pb-4">
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delimitadores</label>
-                                <div className="flex gap-2">
-                                    <input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/3 border p-1 rounded text-center text-xs font-mono" placeholder="<<" />
-                                    <span className="text-xs text-slate-400 self-center">TAG</span>
-                                    <input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/3 border p-1 rounded text-center text-xs font-mono" placeholder=">>" />
-                                </div>
-                                <button onClick={handleSaveDelimiters} className="w-full mt-2 bg-slate-200 text-slate-600 text-xs py-1 rounded hover:bg-slate-300 font-bold">Salvar Símbolos</button>
+                <div className="flex gap-6 items-start">
+                     <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4">
+                        <div className="mb-6 border-b pb-4">
+                            <label className="text-xs font-bold text-slate-500 block mb-2">Delimitadores</label>
+                            <div className="flex gap-2">
+                                <input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/3 border p-1 rounded text-center" />
+                                <span className="text-xs self-center">TAG</span>
+                                <input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/3 border p-1 rounded text-center" />
                             </div>
-
-                            <h3 className="font-bold text-sm text-slate-500 uppercase mb-4">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
-                            <form onSubmit={handleSaveTagPanel} className="space-y-3">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400">Módulo</label>
-                                    <select value={tagModuleFilter} onChange={(e) => setTagModuleFilter(e.target.value)} className="w-full border p-2 rounded text-sm outline-none focus:border-[#00DBFF]">
-                                        {Object.entries(TOOLS_CONFIG).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400">ID da Tag</label>
-                                    <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full bg-slate-50 border p-2 rounded text-sm font-mono uppercase" placeholder="NOME" required />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400">Rótulo do Campo</label>
-                                    <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Ex: Nome Completo" required />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400">Tipo de Input</label>
-                                    <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm">
-                                        <option value="text">Texto</option>
-                                        <option value="date">Data</option>
-                                        <option value="email">E-mail</option>
-                                    </select>
-                                </div>
-                                <div className="pt-2 flex gap-2">
-                                    <button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm hover:bg-[#00b0cc]">{editingTagId ? 'Salvar Alteração' : 'Criar Tag'}</button>
-                                    {editingTagId && <button type="button" onClick={() => { setEditingTagId(null); setTagForm({id:'', label:'', type:'text'}) }} className="px-3 bg-slate-200 rounded text-slate-600 text-sm">X</button>}
-                                </div>
-                            </form>
-                         </div>
-
-                         <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                             <table className="w-full text-left text-sm">
-                                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
-                                     <tr>
-                                         <th className="p-3">Tag</th>
-                                         <th className="p-3">Rótulo</th>
-                                         <th className="p-3 text-right">Ações</th>
+                            <button onClick={handleSaveDelimiters} className="w-full mt-2 bg-slate-200 text-xs py-1 rounded font-bold">Salvar</button>
+                        </div>
+                        <form onSubmit={handleSaveTagPanel} className="space-y-3">
+                            <select value={tagModuleFilter} onChange={(e) => setTagModuleFilter(e.target.value)} className="w-full border p-2 rounded text-sm">
+                                {Object.entries(TOOLS_CONFIG).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                            </select>
+                            <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID" required />
+                            <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo" required />
+                            <div className="flex gap-2">
+                                <button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTagId ? 'Salvar' : 'Criar'}</button>
+                                {editingTagId && <button type="button" onClick={() => { setEditingTagId(null); setTagForm({id:'', label:'', type:'text'}) }} className="px-3 bg-slate-200 rounded text-sm">X</button>}
+                            </div>
+                        </form>
+                     </div>
+                     <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                         <table className="w-full text-sm text-left">
+                             <thead className="bg-slate-50 font-bold text-slate-500 border-b"><tr><th className="p-3">Tag</th><th className="p-3">Rótulo</th><th className="p-3 text-right">Ações</th></tr></thead>
+                             <tbody>
+                                 {(tagsConfig[tagModuleFilter] || []).map((tag, idx) => (
+                                     <tr key={idx} className="border-b hover:bg-slate-50">
+                                         <td className="p-3 font-mono text-blue-600 text-xs">{delimiters.prefix}{tag.id}{delimiters.suffix}</td>
+                                         <td className="p-3">{tag.label}</td>
+                                         <td className="p-3 text-right">
+                                             <button onClick={() => { setEditingTagId(tag.id); setTagForm(tag); }} className="text-blue-500 mr-2">Editar</button>
+                                             <button onClick={() => handleDeleteTag(tag.id, tagModuleFilter)} className="text-red-500">Excluir</button>
+                                         </td>
                                      </tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-slate-100">
-                                     {(tagsConfig[tagModuleFilter] || []).length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">Nenhuma tag configurada para este módulo.</td></tr>}
-                                     {(tagsConfig[tagModuleFilter] || []).map((tag, idx) => (
-                                         <tr key={idx} className="hover:bg-slate-50">
-                                             <td className="p-3 font-mono text-blue-600 text-xs">{delimiters.prefix}{tag.id}{delimiters.suffix}</td>
-                                             <td className="p-3">{tag.label}</td>
-                                             <td className="p-3 text-right">
-                                                 <button onClick={() => { setEditingTagId(tag.id); setTagForm(tag); }} className="text-blue-500 hover:underline mr-3 text-xs font-bold">Editar</button>
-                                                 <button onClick={() => handleDeleteTag(tag.id, tagModuleFilter)} className="text-red-500 hover:underline text-xs font-bold">Excluir</button>
-                                             </td>
-                                         </tr>
-                                     ))}
-                                 </tbody>
-                             </table>
-                         </div>
-                    </div>
+                                 ))}
+                             </tbody>
+                         </table>
+                     </div>
                 </div>
             )}
             
-            {/* VIEW: CHANGELOG */}
-            {activeTab === 'changelog' && (
-                 <div className="space-y-6 animate-fadeIn">
-                     <h2 className="text-2xl font-bold text-slate-800">Gerenciar Changelog</h2>
-                     
-                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                         <h3 className="font-bold text-sm text-slate-500 uppercase mb-4">{editingLogId ? 'Editar Registro' : 'Novo Registro'}</h3>
-                         <div className="grid grid-cols-4 gap-4 mb-4">
-                             <input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão (ex: 1.0)" className="border p-2 rounded text-sm"/>
-                             <input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/>
-                             <input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="col-span-2 border p-2 rounded text-sm"/>
-                         </div>
-                         <textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição..." className="w-full border p-2 rounded text-sm h-20 mb-4 resize-none"/>
-                         <div className="flex gap-2">
-                            <button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm hover:bg-[#00b0cc]">{editingLogId ? 'Atualizar' : 'Adicionar'}</button>
-                            {editingLogId && <button onClick={() => { setEditingLogId(null); setNewLog({ version: '', date: '', title: '', content: '' }) }} className="bg-slate-200 px-4 py-2 rounded text-sm">Cancelar</button>}
-                         </div>
-                     </div>
-
-                     <div className="space-y-4">
-                         {changelog.map(log => (
-                             <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start group">
-                                 <div>
-                                     <div className="flex items-center gap-3 mb-1">
-                                         <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded">v{log.version}</span>
-                                         <span className="text-slate-400 text-xs">{log.date}</span>
-                                     </div>
-                                     <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
-                                     <p className="text-sm text-slate-500 mt-1">{log.content}</p>
-                                 </div>
-                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                     <button onClick={() => handleEditLogClick(log)} className="text-blue-500 text-xs font-bold hover:underline">Editar</button>
-                                     <button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs font-bold hover:underline">Remover</button>
-                                 </div>
-                             </div>
-                         ))}
-                     </div>
-                 </div>
-            )}
-
-            {/* VIEW: USERS */}
+            {/* USERS */}
             {activeTab === 'users' && (
-                <div className="animate-fadeIn space-y-6">
-                    <h2 className="text-2xl font-bold text-slate-800">Controle de Usuários</h2>
-                    
-                    <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm mb-4 hover:bg-[#00b0cc]">
-                      + Convidar Usuário
-                    </button>
-                    
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                                <tr><th className="p-4">Nome</th><th className="p-4">Email</th><th className="p-4">Role</th><th className="p-4 text-right">Ações</th></tr>
-                            </thead>
+                <div className="space-y-6">
+                    <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
+                    <div className="bg-white rounded shadow overflow-hidden">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 border-b"><tr><th className="p-3">Nome</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3 text-right">Ações</th></tr></thead>
                             <tbody>
                                 {users.map(u => (
-                                    <tr key={u.id} className="border-b hover:bg-slate-50">
-                                        <td className="p-4">{u.name}</td>
-                                        <td className="p-4 text-slate-500">{u.email}</td>
-                                        <td className="p-4 capitalize"><span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">{u.role}</span></td>
-                                        <td className="p-4 text-right">
-                                            <button onClick={() => handleEditUserClick(u)} className="text-blue-600 font-bold text-xs mr-3 hover:underline">Editar</button>
-                                            <button onClick={() => removeUser(u.id)} className="text-red-500 font-bold text-xs hover:underline">Remover</button>
-                                        </td>
-                                    </tr>
+                                    <tr key={u.id} className="border-b"><td className="p-3">{u.name}</td><td className="p-3">{u.email}</td><td className="p-3 capitalize">{u.role}</td><td className="p-3 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-500 mr-2">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500">Excluir</button></td></tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                 </div>
             )}
+
+            {/* CHANGELOG */}
+            {activeTab === 'changelog' && (
+                 <div className="space-y-6">
+                     <div className="bg-white p-6 rounded shadow border">
+                         <div className="grid grid-cols-3 gap-2 mb-2">
+                             <input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/>
+                             <input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/>
+                             <input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/>
+                         </div>
+                         <textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-16"/>
+                         <button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded text-sm font-bold mt-2">{editingLogId ? 'Atualizar' : 'Adicionar'}</button>
+                     </div>
+                     <div className="space-y-2">
+                         {changelog.map(log => (
+                             <div key={log.id} className="bg-white p-3 rounded border flex justify-between">
+                                 <div><span className="font-bold text-xs bg-green-100 px-2 py-0.5 rounded mr-2">{log.version}</span><span className="font-bold text-sm">{log.title}</span><p className="text-xs text-slate-500">{log.content}</p></div>
+                                 <div><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs mr-2">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs">Excluir</button></div>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+            )}
         </div>
       </div>
 
-      {/* EDITOR MODAL (Full Screen VS Code Style) */}
+      {/* EDITOR MODAL */}
       {editingTemplate && (
-            <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col animate-fadeIn">
-                <div className="bg-[#1e1e1e] text-white p-3 flex justify-between items-center border-b border-[#333]">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[#00DBFF] text-lg font-mono">HTML Editor</span>
-                        <span className="text-xs text-gray-400 bg-[#333] px-2 py-1 rounded">{TOOLS_CONFIG[editingTemplate]?.label}</span>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setEditingTemplate(null)} className="px-4 py-1 text-sm text-gray-400 hover:text-white">Cancelar</button>
-                        <button onClick={handleSaveEditedTemplate} className="px-4 py-1 bg-[#007acc] text-white text-sm hover:bg-[#0098ff]">Salvar (Ctrl+S)</button>
-                    </div>
+            <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
+                <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
+                    <span className="font-bold">Editor HTML ({TOOLS_CONFIG[editingTemplate]?.label})</span>
+                    <div className="flex gap-2"><button onClick={() => setEditingTemplate(null)} className="text-slate-400 text-sm">Cancelar</button><button onClick={handleSaveEditedTemplate} className="bg-[#007acc] px-3 py-1 rounded text-sm">Salvar</button></div>
                 </div>
-
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Sidebar Tags do Módulo Específico */}
-                    <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto custom-scroll flex flex-col">
-                        
-                        {/* CONDICIONAL: SE EDITANDO TAG, MOSTRA FORMULÁRIO */}
-                        {editingTagId ? (
-                            <div className="p-2">
-                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-3">Editar Tag</h4>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const success = saveTag(tagForm.id, tagForm.label, tagForm.type, editingTemplate, true, editingTagId);
-                                    if(success !== false) {
-                                        setTagForm({ id: '', label: '', type: 'text' });
-                                        setEditingTagId(null);
-                                    } else {
-                                        alert('Erro ao salvar tag.');
-                                    }
-                                }} className="space-y-3">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 mb-1">ID da Tag</label>
-                                        <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full bg-[#3c3c3c] text-white border border-gray-600 p-2 rounded text-xs font-mono uppercase focus:border-[#007acc] outline-none" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 mb-1">Rótulo</label>
-                                        <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full bg-[#3c3c3c] text-white border border-gray-600 p-2 rounded text-xs focus:border-[#007acc] outline-none" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 mb-1">Tipo</label>
-                                        <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full bg-[#3c3c3c] text-white border border-gray-600 p-2 rounded text-xs focus:border-[#007acc] outline-none">
-                                            <option value="text">Texto</option>
-                                            <option value="date">Data</option>
-                                            <option value="email">E-mail</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex gap-2 pt-2">
-                                        <button type="submit" className="flex-1 bg-[#007acc] text-white font-bold py-1.5 rounded text-xs hover:bg-[#006bb3]">Salvar</button>
-                                        <button type="button" onClick={() => { setEditingTagId(null); setTagForm({id:'', label:'', type:'text'}) }} className="px-3 bg-[#3c3c3c] text-white rounded text-xs hover:bg-[#4c4c4c]">Cancelar</button>
-                                    </div>
-                                </form>
-                            </div>
-                        ) : (
-                            <>
-                                <p className="text-xs font-bold text-gray-500 uppercase mb-2 px-2">Tags do Módulo</p>
-                                <div className="flex-1 overflow-y-auto mb-4">
-                                    {(tagsConfig[editingTemplate] || []).map(tag => (
-                                        <div key={tag.id} className="group flex items-center justify-between px-2 py-1 hover:bg-[#37373d] rounded mb-1">
-                                            <button onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="text-left flex-1 min-w-0">
-                                                <span className="text-gray-300 text-xs block truncate">{tag.label}</span>
-                                                <span className="text-[#00DBFF] opacity-50 group-hover:opacity-100 text-[10px] font-mono truncate">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
-                                            </button>
-                                            <div className="hidden group-hover:flex gap-1 ml-2">
-                                                <button onClick={() => handleEditTagClick(tag)} title="Editar Tag" className="text-gray-500 hover:text-blue-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                                                <button onClick={() => handleDeleteTag(tag.id, editingTemplate)} title="Excluir Tag" className="text-gray-500 hover:text-red-400"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                
-                                {/* Quick Create Tag in Editor */}
-                                <div className="border-t border-[#333] pt-4 px-2">
-                                     <label className="text-xs text-gray-500 font-bold block mb-1">Adicionar Nova Tag</label>
-                                     <div className="flex gap-1">
-                                        <input 
-                                            className="bg-[#3c3c3c] text-white text-xs p-1 rounded flex-1 outline-none" 
-                                            placeholder="ID_TAG"
-                                            id="quickTagInput"
-                                            onKeyDown={(e) => {
-                                                if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value);
-                                            }}
-                                        />
-                                        <button 
-                                            onClick={() => handleCreateCustomTagInEditor(document.getElementById('quickTagInput').value)}
-                                            className="bg-[#007acc] text-white px-2 rounded text-xs hover:bg-[#006bb3]"
-                                        >+</button>
-                                     </div>
-                                     <p className="text-[9px] text-gray-500 mt-1">Cria tag, insere no texto e salva na config.</p>
-                                </div>
-                            </>
-                        )}
+                    <div className="w-64 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags</p>
+                        {(tagsConfig[editingTemplate] || []).map(tag => (
+                            <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1 flex justify-between">
+                                <span>{tag.label}</span>
+                                <span className="text-[#00DBFF] opacity-50">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                            </button>
+                        ))}
+                         <div className="border-t border-[#333] pt-4 mt-2">
+                             <input className="bg-[#3c3c3c] text-white text-xs p-1 rounded w-full mb-1" placeholder="Nova Tag" id="quickTagInput" onKeyDown={(e) => { if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value); }} />
+                             <p className="text-[9px] text-gray-500">Enter para criar</p>
+                        </div>
                     </div>
-                    
-                    <div className="flex-1 bg-[#1e1e1e] relative flex flex-col">
-                        <textarea 
-                            ref={textAreaRef}
-                            className="flex-1 w-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none leading-relaxed"
-                            value={htmlContent}
-                            onChange={(e) => setHtmlContent(e.target.value)}
-                            spellCheck="false"
-                        />
-                    </div>
-                    
+                    <textarea ref={textAreaRef} className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} spellCheck="false" />
                     <div className="w-[35%] bg-white border-l border-gray-300 flex flex-col">
                         <div className="bg-gray-100 p-2 text-xs font-bold text-gray-500 border-b text-center">Preview</div>
                         <div className="flex-1 p-4 overflow-y-auto bg-gray-200">
@@ -817,34 +605,30 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
             </div>
       )}
 
-      {/* MODAL USER ADD/EDIT */}
+      {/* USER MODAL */}
       {showUserModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded shadow-lg w-96">
-              <h3 className="text-lg font-bold mb-4">{editingUserId ? 'Editar Usuário' : 'Convidar Usuário'}</h3>
+              <h3 className="font-bold mb-4">{editingUserId ? 'Editar' : 'Novo'} Usuário</h3>
               <form onSubmit={handleSaveUser} className="space-y-3">
                 <input placeholder="Nome" required className="w-full border p-2 rounded text-sm" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
-                <input placeholder="Email" required type="email" className="w-full border p-2 rounded text-sm" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                <input placeholder="Email" required className="w-full border p-2 rounded text-sm" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
                 <select className="w-full border p-2 rounded text-sm" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}>
-                    <option value="user">Colaborador</option>
-                    <option value="admin">Administrador</option>
+                    <option value="user">Colaborador</option><option value="admin">Admin</option>
                 </select>
-                
                 {userForm.role === 'user' && (
                   <div className="border p-2 rounded bg-slate-50 max-h-40 overflow-y-auto">
-                    <p className="text-xs font-bold mb-2">Acesso às Ferramentas:</p>
+                    <p className="text-xs font-bold mb-2">Permissões:</p>
                     {Object.entries(TOOLS_CONFIG).map(([key, tool]) => (
                       <label key={key} className="flex items-center gap-2 text-xs mb-1 cursor-pointer">
-                        <input type="checkbox" checked={userForm.permissions.includes(key)} onChange={() => toggleUserPermission(key)} />
-                        {tool.label}
+                        <input type="checkbox" checked={userForm.permissions.includes(key)} onChange={() => toggleUserPermission(key)} /> {tool.label}
                       </label>
                     ))}
                   </div>
                 )}
-
                 <div className="flex justify-end gap-2 mt-4">
-                    <button type="button" onClick={() => setShowUserModal(false)} className="text-slate-500 text-sm">Cancelar</button>
-                    <button type="submit" className="bg-[#00DBFF] px-3 py-1.5 rounded font-bold text-sm text-[#002233]">Salvar</button>
+                    <button type="button" onClick={() => setShowUserModal(false)} className="text-sm">Cancelar</button>
+                    <button type="submit" className="bg-[#00DBFF] px-3 py-1.5 rounded font-bold text-sm">Salvar</button>
                 </div>
               </form>
             </div>
@@ -865,14 +649,11 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
     const content = template?.content || DEFAULT_HTML_TEMPLATE;
     const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`${escapeRegExp(delimiters.prefix)}([A-Z0-9_]+)${escapeRegExp(delimiters.suffix)}`, 'g');
-    
     const foundTags = new Set();
     let match;
     while ((match = regex.exec(content)) !== null) foundTags.add(match[1]);
-    
     const tagsArray = Array.from(foundTags);
     setParsedTags(tagsArray);
-    
     const initialData = {};
     tagsArray.forEach(tag => {
         initialData[tag] = '';
@@ -880,8 +661,6 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
     });
     setFormData(initialData);
   }, [template, delimiters]);
-
-  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
 
   const renderDocument = () => {
       let html = template?.content || DEFAULT_HTML_TEMPLATE;
@@ -893,37 +672,117 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
       return <div dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
-  const renderInputForTag = (tag) => {
-      const moduleTags = tagsConfig[moduleId] || [];
-      const tagConfig = moduleTags.find(t => t.id === tag);
-      const label = tagConfig ? tagConfig.label : tag.replace(/_/g, ' ');
-      const type = tagConfig ? tagConfig.type : 'text';
-
-      return (
-          <div key={tag} className="mb-3">
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{label}</label>
-              <input type={type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none" value={formData[tag] || ''} onChange={e => handleChange(tag, e.target.value)} />
-          </div>
-      );
-  };
-
   return (
-    <div className="flex flex-row h-full w-full animate-fadeIn overflow-hidden bg-[#f0f4f8]">
-      <div className="w-[400px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col h-full z-10 no-print shadow-lg">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-          <div><h2 className="font-bold text-[#002233]">Preenchimento</h2><p className="text-[10px] text-slate-400">{parsedTags.length} campos detectados</p></div>
-          <button onClick={() => window.print()} className="bg-[#002233] text-white px-4 py-2 rounded-lg hover:bg-slate-700 font-bold text-xs flex items-center gap-2 shadow-lg"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>IMPRIMIR</button>
+    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
+      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
+          <button onClick={() => window.print()} className="bg-[#002233] text-white px-3 py-1 rounded text-xs font-bold">IMPRIMIR</button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 custom-scroll bg-white">
-            {parsedTags.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma tag encontrada no template.</p>}
-            {parsedTags.sort().map(tag => renderInputForTag(tag))}
+        <div className="flex-1 overflow-y-auto p-6 custom-scroll">
+            {parsedTags.sort().map(tag => {
+                 const moduleTags = tagsConfig[moduleId] || [];
+                 const tagConfig = moduleTags.find(t => t.id === tag);
+                 return (
+                  <div key={tag} className="mb-3">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{tagConfig ? tagConfig.label : tag}</label>
+                      <input className="w-full border p-2 rounded text-sm" value={formData[tag] || ''} onChange={e => setFormData({...formData, [tag]: e.target.value})} />
+                  </div>
+                 );
+            })}
         </div>
       </div>
-      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll w-full">
-        <div className="print-area bg-white shadow-2xl w-[21cm] min-h-[29.7cm] p-[1cm] relative mx-auto origin-top transition-transform duration-200">
+      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
+        <div className="print-area bg-white shadow-2xl w-[21cm] min-h-[29.7cm] p-[1cm] relative mx-auto origin-top">
             {renderDocument()}
         </div>
       </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// HOME PAGE
+// ============================================================================
+const HomePage = ({ onNavigate, user, changelog }) => (
+  <div className="h-full w-full flex flex-col bg-[#f0f4f8] overflow-y-auto">
+    <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black mb-2 tracking-tight">Bem-vindo ao <span className="text-[#00DBFF]">CORE</span></h1>
+        <p className="text-slate-400 text-lg max-w-2xl">Centralize a gestão de ativos e automatize documentos.</p>
+      </div>
+    </div>
+    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+        <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Acesso Rápido</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(TOOLS_CONFIG).map(([key, tool]) => (
+                    <div key={key} onClick={() => tool.active && onNavigate(key === 'desligamento' ? 'Desligamento' : '')} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
+                        <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-lg flex items-center justify-center mb-4"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
+                        <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
+                        <p className="text-sm text-slate-500 mt-2 h-10">{tool.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+        <div className="w-full lg:w-80">
+             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Changelog</h2>
+             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto">
+                {changelog.map(log => (
+                    <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center mb-1"><span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400">{log.date}</span></div>
+                        <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1">{log.content}</p>
+                    </div>
+                ))}
+             </div>
+        </div>
+    </div>
+  </div>
+);
+
+// ============================================================================
+// DASHBOARD
+// ============================================================================
+const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog }) => {
+  const [activePage, setActivePage] = useState('Home');
+  const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
+  const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
+  const hasAccess = (toolKey) => {
+      const tool = TOOLS_CONFIG[toolKey];
+      if (!tool || !tool.active) return false;
+      return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
+  };
+
+  return (
+    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
+      <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
+      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
+        <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
+          <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
+          <span className="font-bold text-sm tracking-widest">PROJETO CORE</span>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
+          <div className="px-3 space-y-1">
+            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5'}`}><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral</button>
+            <div>
+              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5"><div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div><svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></button>
+              {expandedMenu.geradores && <div className="pl-10 pr-2 space-y-1 mt-1"><button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : 'text-slate-400 hover:text-white'}`}>Desligamento</button></div>}
+            </div>
+            {user.role === 'admin' && <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5'}`}><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>Administração</button>}
+          </div>
+        </nav>
+        <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-[#00DBFF] text-[#002233] flex items-center justify-center font-bold text-sm">{user.name.charAt(0)}</div>
+            <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name.split(' ')[0]}</p><p className="text-[10px] text-slate-400 truncate uppercase">{user.role}</p></div>
+            <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+        </div>
+      </aside>
+      <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
+        {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} />}
+        {activePage === 'Desligamento' && <DynamicGenerator template={templates['desligamento']} tagsConfig={tagsConfig} delimiters={delimiters} moduleId="desligamento" />}
+      </main>
     </div>
   );
 };
@@ -941,61 +800,35 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-      // Autenticação anônima como "serviço" do app
       signInAnonymously(auth).then(() => {
           setDbReady(true);
       }).catch(console.error);
   }, []);
 
-  // Só conecta aos dados após estar autenticado (dbReady)
   useEffect(() => {
       if (!dbReady) return;
-
       const unsubUsers = onSnapshot(getCollectionRef('users'), (snap) => {
-          const loaded = [];
-          snap.forEach(doc => loaded.push(doc.data()));
-          if(loaded.length === 0) { 
-              DEFAULT_USERS.forEach(u => setDoc(getDocRef('users', u.id), u));
-          } else {
-              setUsers(loaded);
-          }
-      }, (err) => console.log('Waiting for permission...'));
-
+          const loaded = []; snap.forEach(doc => loaded.push(doc.data()));
+          if(loaded.length === 0) DEFAULT_USERS.forEach(u => setDoc(getDocRef('users', u.id), u));
+          else setUsers(loaded);
+      }, () => {});
       const unsubTemplates = onSnapshot(getCollectionRef('templates'), (snap) => {
-          const loaded = {};
-          snap.forEach(doc => loaded[doc.id] = doc.data());
-          setTemplates(loaded);
-      }, (err) => console.log('Waiting for permission...'));
-
+          const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data()); setTemplates(loaded);
+      }, () => {});
       const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
-          const loaded = {};
-          snap.forEach(doc => loaded[doc.id] = doc.data().list);
-          if (Object.keys(loaded).length === 0) {
-              Object.entries(DEFAULT_TAGS_BY_MODULE).forEach(([k, v]) => setDoc(getDocRef('tags', k), { list: v }));
-          } else {
-              setTagsConfig(loaded);
-          }
-      }, (err) => console.log('Waiting for permission...'));
-      
+          const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data().list);
+          if(Object.keys(loaded).length === 0) Object.entries(DEFAULT_TAGS_BY_MODULE).forEach(([k, v]) => setDoc(getDocRef('tags', k), { list: v }));
+          else setTagsConfig(loaded);
+      }, () => {});
       const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
-           snap.forEach(doc => {
-               if(doc.id === 'delimiters') setDelimiters(doc.data());
-           });
-      }, (err) => console.log('Waiting for permission...'));
-
+           snap.forEach(doc => { if(doc.id === 'delimiters') setDelimiters(doc.data()); });
+      }, () => {});
       const unsubChangelog = onSnapshot(getCollectionRef('changelog'), (snap) => {
-          const loaded = [];
-          snap.forEach(doc => loaded.push(doc.data()));
-          if(loaded.length === 0) {
-             DEFAULT_CHANGELOG.forEach(l => setDoc(getDocRef('changelog', l.id), l)); 
-          } else {
-             setChangelog(loaded.sort((a,b) => b.id - a.id));
-          }
-      }, (err) => console.log('Waiting for permission...'));
-
-      return () => {
-          unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog();
-      }
+          const loaded = []; snap.forEach(doc => loaded.push(doc.data()));
+          if(loaded.length === 0) DEFAULT_CHANGELOG.forEach(l => setDoc(getDocRef('changelog', l.id), l));
+          else setChangelog(loaded.sort((a,b) => b.id - a.id));
+      }, () => {});
+      return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
 
   useEffect(() => {
@@ -1005,6 +838,10 @@ export default function App() {
     const style = document.createElement('style');
     style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
     document.head.appendChild(style);
+    if (!document.querySelector('script[src*="mammoth"]')) {
+       const s = document.createElement('script'); s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js";
+       document.head.appendChild(s);
+    }
   }, []);
 
   return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} />;
