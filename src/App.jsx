@@ -52,8 +52,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
-  { id: '2', version: '2.5', date: '2024-01-27', title: 'Gestão Completa', content: 'Painel administrativo e editor de templates.' },
+  { id: '1', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
+  { id: '2', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
+  { id: '3', version: '2.5', date: '2024-01-27', title: 'Gestão Completa', content: 'Painel administrativo e editor de templates.' },
 ];
 
 const TOOLS_CONFIG = {
@@ -127,7 +128,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }
 
     setTimeout(() => {
-      const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
         setError('E-mail não encontrado na lista de convites.');
@@ -140,6 +141,9 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         setLoading(false);
         return;
       }
+
+      // Verificação de Domínio removida para permitir testes mais flexíveis se o usuário já estiver na lista
+      // if (!email.toLowerCase().endsWith('@totvs.com.br') && !email.includes('core.teste')) { ... }
 
       onLogin(foundUser);
       setLoading(false);
@@ -158,8 +162,8 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
         
-        // Verifica se o e-mail do Google está na lista de usuários permitidos
-        const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
+        // Verifica se o e-mail do Google está na lista de usuários permitidos (Convite)
+        const foundUser = users.find(u => u.email.toLowerCase() === googleUser.email.toLowerCase());
 
         if (foundUser) {
             if (!foundUser.active) {
@@ -189,7 +193,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }
     const devUser = users.find(u => u.email === 'dev@core.teste');
     if (devUser) onLogin(devUser);
-    else alert('Usuário DEV não encontrado.');
+    else alert('Usuário DEV não encontrado no banco de dados. Certifique-se de que a inicialização do DB ocorreu.');
   };
 
   return (
@@ -235,11 +239,11 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2 font-bold animate-pulse"><span>⚠️</span> {error}</div>}
             
             <div>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none" />
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             </div>
             
             <div>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none" />
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             </div>
 
             <button type="submit" disabled={loading} className="w-full bg-[#002233] border border-[#00DBFF]/30 text-[#00DBFF] font-bold py-3 rounded-lg hover:bg-[#00DBFF] hover:text-[#002233] transition-all text-sm">
@@ -264,26 +268,34 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => {
   const [activeTab, setActiveTab] = useState('templates');
   
-  // States
+  // States Templates
   const [targetModule, setTargetModule] = useState('desligamento'); 
   const [uploadStatus, setUploadStatus] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); 
   const [htmlContent, setHtmlContent] = useState('');
   const textAreaRef = useRef(null);
 
+  // States Users
   const [showUserModal, setShowUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
   const [editingUserId, setEditingUserId] = useState(null);
 
+  // States Tags
   const [editingTagId, setEditingTagId] = useState(null);
   const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text' });
   const [tagModuleFilter, setTagModuleFilter] = useState('desligamento');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
 
+  // States Editor Tag Editing (New)
+  const [editorEditingTagId, setEditorEditingTagId] = useState(null);
+  const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
+
+
+  // States Changelog
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // --- Handlers (Firestore) ---
+  // --- TEMPLATE & EDITOR ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -327,6 +339,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
+  // --- GESTÃO DE TAGS (Firestore) ---
   const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || [];
@@ -351,6 +364,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       }
   };
 
+  // Handler do Painel de Tags (Aba Tags)
   const handleSaveTagPanel = async (e) => {
       e.preventDefault();
       const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTagId, editingTagId);
@@ -360,6 +374,18 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       } else {
           alert('Tag já existe!');
       }
+  };
+
+  // Handler do Editor de Tags (Dentro do Editor HTML)
+  const handleSaveTagInEditor = async (e) => {
+    e.preventDefault();
+    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
+    if(success) {
+        setEditorEditingTagId(null);
+        setEditorTagForm({ id: '', label: '', type: 'text' });
+    } else {
+        alert("Erro ao editar tag.");
+    }
   };
 
   const handleEditTagClick = (tag) => {
@@ -372,6 +398,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     alert(`Delimitadores atualizados.`);
   };
 
+  // --- GESTÃO DE USUÁRIOS (Firestore) ---
   const handleSaveUser = async (e) => {
     e.preventDefault();
     const userId = editingUserId || Date.now().toString();
@@ -403,6 +430,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     }
   };
 
+  // --- CHANGELOG (Firestore) ---
   const handleSaveLog = async (e) => {
       e.preventDefault();
       const logId = editingLogId || Date.now().toString();
@@ -412,10 +440,16 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       setNewLog({ version: '', date: '', title: '', content: '' });
   };
 
-  const handleDeleteLog = async (id) => {
-      if(window.confirm('Remover?')) await deleteDoc(getDocRef('changelog', id));
+  const handleEditLogClick = (log) => {
+      setNewLog(log);
+      setEditingLogId(log.id);
   };
 
+  const handleDeleteLog = async (id) => {
+      if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id));
+  };
+
+  // --- EDITOR SAVE ---
   const handleCreateCustomTagInEditor = async (tagInput) => {
     if(!tagInput) return;
     const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
@@ -448,18 +482,33 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
+      {/* ADMIN SIDEBAR */}
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-[#002233]">Administração</h2>
+            <p className="text-xs text-slate-400">Painel de Controle</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Templates</button>
-            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Configurar Tags</button>
-            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Usuários</button>
-            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>Changelog</button>
+            <button onClick={() => setActiveTab('templates')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'templates' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Templates
+            </button>
+            <button onClick={() => setActiveTab('tags')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                Configurar Tags
+            </button>
+            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                Usuários
+            </button>
+            <button onClick={() => setActiveTab('changelog')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium transition-colors ${activeTab === 'changelog' ? 'bg-[#00DBFF]/10 text-[#008fb3]' : 'text-slate-500 hover:bg-slate-50'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Changelog
+            </button>
         </nav>
       </div>
 
+      {/* MAIN CONTENT AREA */}
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
             {/* TEMPLATES */}
@@ -581,14 +630,40 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                     <div className="flex gap-2"><button onClick={() => setEditingTemplate(null)} className="text-slate-400 text-sm">Cancelar</button><button onClick={handleSaveEditedTemplate} className="bg-[#007acc] px-3 py-1 rounded text-sm">Salvar</button></div>
                 </div>
                 <div className="flex-1 flex overflow-hidden">
-                    <div className="w-64 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags</p>
-                        {(tagsConfig[editingTemplate] || []).map(tag => (
-                            <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1 flex justify-between">
-                                <span>{tag.label}</span>
-                                <span className="text-[#00DBFF] opacity-50">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
-                            </button>
-                        ))}
+                    <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
+                        
+                        {/* SEÇÃO DE EDIÇÃO DE TAG NO SIDEBAR */}
+                        {editorEditingTagId ? (
+                             <div className="p-3 bg-[#333] rounded mb-4 border border-blue-500/50">
+                                <h4 className="text-xs font-bold text-blue-400 mb-2">Editar Tag Selecionada</h4>
+                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.id} onChange={e => setEditorTagForm({...editorTagForm, id: e.target.value.toUpperCase()})} placeholder="ID" />
+                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.label} onChange={e => setEditorTagForm({...editorTagForm, label: e.target.value})} placeholder="Label" />
+                                <select className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.type} onChange={e => setEditorTagForm({...editorTagForm, type: e.target.value})}>
+                                    <option value="text">Texto</option><option value="date">Data</option><option value="email">Email</option>
+                                </select>
+                                <div className="flex gap-2">
+                                    <button onClick={handleSaveTagInEditor} className="bg-blue-600 text-white px-2 py-1 rounded text-xs flex-1">Salvar</button>
+                                    <button onClick={() => setEditorEditingTagId(null)} className="bg-gray-600 text-white px-2 py-1 rounded text-xs">Cancelar</button>
+                                </div>
+                             </div>
+                        ) : (
+                             <div className="mb-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags do Módulo</p>
+                                {(tagsConfig[editingTemplate] || []).map(tag => (
+                                    <div key={tag.id} className="group flex items-center justify-between px-2 py-1 hover:bg-[#37373d] rounded mb-1">
+                                        <button onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="text-left flex-1 min-w-0">
+                                            <span className="text-gray-300 text-xs block truncate">{tag.label}</span>
+                                            <span className="text-[#00DBFF] opacity-50 text-[10px]">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                                        </button>
+                                        <div className="hidden group-hover:flex gap-1">
+                                            <button onClick={() => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); }} className="text-blue-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                            <button onClick={() => handleDeleteTag(tag.id, editingTemplate)} className="text-red-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                        )}
+
                          <div className="border-t border-[#333] pt-4 mt-2">
                              <input className="bg-[#3c3c3c] text-white text-xs p-1 rounded w-full mb-1" placeholder="Nova Tag" id="quickTagInput" onKeyDown={(e) => { if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value); }} />
                              <p className="text-[9px] text-gray-500">Enter para criar</p>
@@ -764,12 +839,28 @@ const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, t
         </div>
         <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
           <div className="px-3 space-y-1">
-            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5'}`}><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral</button>
+            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
+            </button>
             <div>
-              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5"><div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div><svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></button>
-              {expandedMenu.geradores && <div className="pl-10 pr-2 space-y-1 mt-1"><button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : 'text-slate-400 hover:text-white'}`}>Desligamento</button></div>}
+              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">
+                <div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div>
+                <svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {expandedMenu.geradores && (
+                <div className="pl-10 pr-2 space-y-1 mt-1">
+                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : 'text-slate-400 hover:text-white'}`}>Desligamento</button>
+                  <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Telefonia<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
+                  <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Monitores<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
+                </div>
+              )}
             </div>
-            {user.role === 'admin' && <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5'}`}><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>Administração</button>}
+            {(user.role === 'admin' || user.permissions.includes('all')) && (
+              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Administração
+              </button>
+            )}
           </div>
         </nav>
         <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
@@ -836,7 +927,7 @@ export default function App() {
       const s = document.createElement('script'); s.src = "https://cdn.tailwindcss.com"; document.head.appendChild(s); 
     }
     const style = document.createElement('style');
-    style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
+    style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
     document.head.appendChild(style);
     if (!document.querySelector('script[src*="mammoth"]')) {
        const s = document.createElement('script'); s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js";
