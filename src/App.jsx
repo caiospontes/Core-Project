@@ -1,22 +1,59 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInWithPopup,
+  GoogleAuthProvider,
+  signInAnonymously, 
+  onAuthStateChanged,
+  signOut
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot 
+} from 'firebase/firestore';
 
 // ============================================================================
-// CONFIGURAÇÃO INICIAL (MOCK)
+// CONFIGURAÇÃO FIREBASE
+// ============================================================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDk_GDGvkyK29P2m8THra6scqhOcX8sX6g",
+  authDomain: "projetocore-f640b.firebaseapp.com",
+  projectId: "projetocore-f640b",
+  storageBucket: "projetocore-f640b.firebasestorage.app",
+  messagingSenderId: "185119471261",
+  appId: "1:185119471261:web:eed71577b1b6befae7c674",
+  measurementId: "G-LMEBJ66GHL"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = firebaseConfig.projectId;
+
+// Paths
+const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
+
+// ============================================================================
+// DADOS PADRÃO (Seeds)
 // ============================================================================
 
 const DEFAULT_USERS = [
-  { id: 1, email: 'admin@totvs.com.br', name: 'Administrador', role: 'admin', permissions: ['all'], active: true },
-  { id: 2, email: 'dev@core.teste', name: 'Desenvolvedor', role: 'admin', permissions: ['all'], active: true }
+  { id: '1', email: 'admin@totvs.com.br', name: 'Administrador', role: 'admin', permissions: ['all'], active: true },
+  { id: '2', email: 'dev@core.teste', name: 'Desenvolvedor', role: 'admin', permissions: ['all'], active: true }
 ];
 
-// Configuração padrão dos delimitadores
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
-// Changelog Inicial
 const DEFAULT_CHANGELOG = [
-  { id: 1, version: '2.5', date: '2024-01-27', title: 'Gestão Completa', content: 'Adicionada edição de usuários, logs e tags diretamente no editor.' },
-  { id: 2, version: '2.4', date: '2024-01-26', title: 'Atualização de Layout', content: 'Novo design visual e separação de tags por módulo.' },
-  { id: 3, version: '2.3', date: '2024-01-25', title: 'Editor HTML', content: 'Inclusão do editor avançado de templates.' },
+  { id: '1', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
+  { id: '2', version: '2.5', date: '2024-01-27', title: 'Gestão Completa', content: 'Painel administrativo e editor de templates.' },
 ];
 
 const TOOLS_CONFIG = {
@@ -40,7 +77,6 @@ const TOOLS_CONFIG = {
   },
 };
 
-// Tags iniciais separadas por módulo
 const DEFAULT_TAGS_BY_MODULE = {
   desligamento: [
     { id: 'NOME', label: 'Nome Colaborador', type: 'text' },
@@ -72,22 +108,99 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 // ============================================================================
 // LOGIN PAGE
 // ============================================================================
-const LoginPage = ({ onLogin, users }) => {
+const LoginPage = ({ onLogin, users, dbReady }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Login com E-mail/Senha (Simulado)
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    if (!dbReady) {
+        setError('Conectando ao banco de dados... Aguarde.');
+        setLoading(false);
+        return;
+    }
+
     setTimeout(() => {
+      // 1. Verificação Estrita de Existência (Convite)
       const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (!foundUser || !foundUser.active) { setError('Usuário inválido.'); setLoading(false); return; }
-      if (!email.toLowerCase().endsWith('@totvs.com.br') && !email.includes('core.teste')) { setError('Use e-mail @totvs.com.br'); setLoading(false); return; }
-      onLogin(foundUser); setLoading(false);
+      
+      if (!foundUser) {
+        setError('Acesso negado. Este e-mail não possui um convite ativo.');
+        setLoading(false);
+        return;
+      }
+
+      // 2. Verificação de Status da Conta
+      if (!foundUser.active) {
+        setError('Sua conta foi desativada pelo administrador.');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Verificação de Domínio (Camada extra de segurança)
+      if (!email.toLowerCase().endsWith('@totvs.com.br') && !email.includes('core.teste')) {
+        setError('Domínio não autorizado. Use seu e-mail corporativo @totvs.com.br');
+        setLoading(false);
+        return;
+      }
+
+      // Login bem sucedido
+      onLogin(foundUser);
+      setLoading(false);
     }, 800);
+  };
+
+  // Login com Google
+  const handleGoogleLogin = async () => {
+    if (!dbReady) return alert('Aguarde a conexão com o sistema.');
+    
+    const provider = new GoogleAuthProvider();
+    setLoading(true);
+    setError('');
+
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const googleUser = result.user;
+        
+        // Verifica se o e-mail do Google está na lista de usuários permitidos (Convite)
+        const foundUser = users.find(u => u.email.toLowerCase() === googleUser.email.toLowerCase());
+
+        if (foundUser) {
+            if (!foundUser.active) {
+                setError('Sua conta foi desativada pelo administrador.');
+                await signOut(auth); // Desloga se não tiver permissão no app
+                // Re-conecta anonimamente para manter leitura do banco
+                signInAnonymously(auth);
+            } else {
+                onLogin(foundUser);
+            }
+        } else {
+            setError('Este e-mail Google não possui convite para acessar o sistema.');
+            await signOut(auth);
+            signInAnonymously(auth);
+        }
+    } catch (err) {
+        console.error("Erro Google Login:", err);
+        setError('Falha na autenticação com Google.');
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleDevLogin = () => {
+    if (!dbReady) {
+       alert("Aguarde a conexão com o banco de dados...");
+       return;
+    }
+    const devUser = users.find(u => u.email === 'dev@core.teste');
+    if (devUser) onLogin(devUser);
+    else alert('Usuário DEV não encontrado no banco de dados. Certifique-se de que a inicialização do DB ocorreu.');
   };
 
   return (
@@ -101,14 +214,55 @@ const LoginPage = ({ onLogin, users }) => {
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">PROJETO CORE</h1>
           <p className="text-slate-400 mt-2 text-sm">Gestão de Ativos e Desligamentos</p>
+          {!dbReady && <span className="text-xs text-yellow-500 animate-pulse block mt-2">Conectando ao banco de dados...</span>}
+          {dbReady && <span className="text-xs text-green-500 block mt-2">Online</span>}
         </div>
+        
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2"><span>⚠️</span> {error}</div>}
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="usuario@totvs.com.br" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 focus:border-[#00DBFF] outline-none" />
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 focus:border-[#00DBFF] outline-none" />
-            <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-[#00DBFF] to-[#009dc4] text-[#002233] font-bold py-3 rounded-lg shadow-lg hover:shadow-[#00DBFF]/20 transition-all">{loading ? 'Acessando...' : 'ACESSAR SISTEMA'}</button>
-            <button type="button" onClick={() => onLogin(users.find(u => u.email === 'dev@core.teste'))} className="w-full border border-white/10 bg-white/5 text-slate-400 text-xs font-bold py-2 rounded-lg hover:bg-white/10 hover:text-white border-dashed">⚡ Login DEV</button>
+          
+          {/* LOGIN COM GOOGLE */}
+          <button 
+            type="button" 
+            onClick={handleGoogleLogin} 
+            disabled={loading}
+            className="w-full bg-white text-slate-700 font-bold py-3 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-3 mb-6"
+          >
+            {loading ? (
+                <span className="text-xs">Processando...</span>
+            ) : (
+                <>
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-5 h-5" />
+                    <span>Entrar com Google</span>
+                </>
+            )}
+          </button>
+
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-px bg-white/10 flex-1"></div>
+            <span className="text-xs text-slate-500 font-bold">OU USE CREDENCIAIS</span>
+            <div className="h-px bg-white/10 flex-1"></div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2 font-bold animate-pulse"><span>⚠️</span> {error}</div>}
+            
+            <div>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none" />
+            </div>
+            
+            <div>
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none" />
+            </div>
+
+            <button type="submit" disabled={loading} className="w-full bg-[#002233] border border-[#00DBFF]/30 text-[#00DBFF] font-bold py-3 rounded-lg hover:bg-[#00DBFF] hover:text-[#002233] transition-all text-sm">
+                Entrar
+            </button>
+            
+            <div className="pt-2 text-center">
+                <button type="button" onClick={handleDevLogin} className="text-[10px] text-slate-600 hover:text-white transition-colors">
+                 Desenvolvedor (Offline/Local)
+                </button>
+            </div>
           </form>
         </div>
       </div>
@@ -119,7 +273,7 @@ const LoginPage = ({ onLogin, users }) => {
 // ============================================================================
 // PAINEL ADMINISTRATIVO
 // ============================================================================
-const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog }) => {
+const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => {
   const [activeTab, setActiveTab] = useState('templates');
   
   // States Templates
@@ -153,12 +307,15 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
       if(file.name.endsWith('.html')) {
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
-          reader.onload = (ev) => {
-              setTemplates(prev => ({
-                  ...prev,
-                  [targetModule]: { name: file.name, content: ev.target.result, date: new Date().toLocaleDateString(), type: 'html' }
-              }));
-              setUploadStatus('Sucesso! HTML carregado.');
+          reader.onload = async (ev) => {
+              const content = ev.target.result;
+              await setDoc(getDocRef('templates', targetModule), {
+                  name: file.name,
+                  content: content,
+                  date: new Date().toLocaleDateString(),
+                  type: 'html'
+              });
+              setUploadStatus('Sucesso! HTML carregado e salvo na nuvem.');
           };
           reader.readAsText(file);
       } else {
@@ -171,7 +328,6 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
       setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE);
   };
 
-  // --- EDITOR UTILS ---
   const insertAtCursor = (textToInsert) => {
     const textarea = textAreaRef.current;
     if (textarea) {
@@ -187,31 +343,34 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
     }
   };
 
-  // --- GESTÃO DE TAGS (Editor & Painel) ---
-  const saveTag = (id, label, type, module, isEdit = false, originalId = null) => {
+  // --- GESTÃO DE TAGS (Firestore) ---
+  const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || [];
 
+      if (!isEdit && currentTags.some(t => t.id === cleanId)) return false;
+
+      let updatedTags = [...currentTags];
       if (isEdit && originalId) {
-           const updatedTags = currentTags.map(t => t.id === originalId ? { id: cleanId, label, type } : t);
-           setTagsConfig(prev => ({ ...prev, [module]: updatedTags }));
+           updatedTags = updatedTags.map(t => t.id === originalId ? { id: cleanId, label, type } : t);
       } else {
-           if (currentTags.some(t => t.id === cleanId)) return false; 
-           setTagsConfig(prev => ({ ...prev, [module]: [...currentTags, { id: cleanId, label, type }] }));
+           updatedTags.push({ id: cleanId, label, type });
       }
+
+      await setDoc(getDocRef('tags', module), { list: updatedTags });
       return true;
   };
 
-  const handleDeleteTag = (id, module) => {
+  const handleDeleteTag = async (id, module) => {
       if(window.confirm('Excluir esta tag?')) {
           const updatedTags = (tagsConfig[module] || []).filter(t => t.id !== id);
-          setTagsConfig(prev => ({ ...prev, [module]: updatedTags }));
+          await setDoc(getDocRef('tags', module), { list: updatedTags });
       }
   };
 
-  const handleSaveTagPanel = (e) => {
+  const handleSaveTagPanel = async (e) => {
       e.preventDefault();
-      const success = saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTagId, editingTagId);
+      const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTagId, editingTagId);
       if(success !== false) {
         setTagForm({ id: '', label: '', type: 'text' });
         setEditingTagId(null);
@@ -225,21 +384,23 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
       setTagForm(tag);
   };
 
-  const handleSaveDelimiters = () => {
-    setDelimiters(tempDelimiters);
+  const handleSaveDelimiters = async () => {
+    await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
     alert(`Delimitadores atualizados para: ${tempDelimiters.prefix}TAG${tempDelimiters.suffix}`);
   };
 
-  // --- GESTÃO DE USUÁRIOS ---
-  const handleSaveUser = (e) => {
+  // --- GESTÃO DE USUÁRIOS (Firestore) ---
+  const handleSaveUser = async (e) => {
     e.preventDefault();
-    if (editingUserId) {
-        setUsers(users.map(u => u.id === editingUserId ? { ...userForm, id: editingUserId, active: u.active } : u));
-        setEditingUserId(null);
-    } else {
-        if (users.some(u => u.email === userForm.email)) return alert('E-mail já existe.');
-        setUsers([...users, { ...userForm, id: Date.now(), active: true, permissions: userForm.role === 'admin' ? ['all'] : userForm.permissions }]);
+    const userId = editingUserId || Date.now().toString();
+    const userData = { ...userForm, id: userId, active: true };
+    if (userData.role === 'admin') userData.permissions = ['all'];
+
+    if (!editingUserId && users.some(u => u.email === userForm.email)) {
+        return alert('E-mail já cadastrado.');
     }
+
+    await setDoc(getDocRef('users', userId), userData);
     setShowUserModal(false);
     setUserForm({ email: '', name: '', role: 'user', permissions: [] });
   };
@@ -250,7 +411,9 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
       setShowUserModal(true);
   };
 
-  const removeUser = (id) => { if(window.confirm('Remover?')) setUsers(users.filter(u => u.id !== id)); };
+  const removeUser = async (id) => { 
+      if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); 
+  };
 
   const toggleUserPermission = (toolKey) => {
     if (userForm.permissions.includes(toolKey)) {
@@ -260,16 +423,13 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
     }
   };
 
-  // --- CHANGELOG ---
-  const handleSaveLog = (e) => {
+  // --- CHANGELOG (Firestore) ---
+  const handleSaveLog = async (e) => {
       e.preventDefault();
-      if (editingLogId) {
-          setChangelog(changelog.map(l => l.id === editingLogId ? { ...newLog, id: editingLogId } : l));
-          setEditingLogId(null);
-      } else {
-          const newEntry = { ...newLog, id: Date.now() };
-          setChangelog([newEntry, ...changelog]);
-      }
+      const logId = editingLogId || Date.now().toString();
+      const logData = { ...newLog, id: logId };
+      await setDoc(getDocRef('changelog', logId), logData);
+      setEditingLogId(null);
       setNewLog({ version: '', date: '', title: '', content: '' });
   };
 
@@ -278,26 +438,12 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
       setEditingLogId(log.id);
   };
 
-  const handleDeleteLog = (id) => {
-      if(window.confirm('Remover registro?')) setChangelog(changelog.filter(l => l.id !== id));
+  const handleDeleteLog = async (id) => {
+      if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id));
   };
 
-  const handleSaveEditedTemplate = () => {
-    setTemplates(prev => ({
-        ...prev,
-        [editingTemplate]: {
-            name: 'Template Editado Manualmente',
-            content: htmlContent,
-            date: new Date().toLocaleDateString(),
-            type: 'html'
-        }
-    }));
-    setEditingTemplate(null);
-    alert('Template salvo!');
-  };
-
-  // --- EDITOR HANDLERS (Create & Edit Tag) ---
-  const handleCreateCustomTagInEditor = (tagInput) => {
+  // --- EDITOR SAVE ---
+  const handleCreateCustomTagInEditor = async (tagInput) => {
     if(!tagInput) return;
     const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     
@@ -316,12 +462,20 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
     const currentTags = tagsConfig[currentModule] || [];
     
     if (!currentTags.some(t => t.id === cleanId)) {
-        const newTag = { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' };
-        setTagsConfig(prev => ({
-            ...prev,
-            [currentModule]: [...(prev[currentModule] || []), newTag]
-        }));
+        const updatedTags = [...currentTags, { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' }];
+        await setDoc(getDocRef('tags', currentModule), { list: updatedTags });
     }
+  };
+
+  const handleSaveEditedTemplate = async () => {
+    await setDoc(getDocRef('templates', editingTemplate), {
+        name: 'Template Editado Manualmente',
+        content: htmlContent,
+        date: new Date().toLocaleDateString(),
+        type: 'html'
+    });
+    setEditingTemplate(null);
+    alert('Template salvo no Firebase!');
   };
 
   return (
@@ -390,7 +544,7 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
                                     </div>
                                     <button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-4 py-2 rounded text-sm font-bold hover:bg-[#00334d] flex items-center gap-2">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                        Editor HTML (VS Code)
+                                        Editor HTML
                                     </button>
                                 </div>
                             ))}
@@ -405,15 +559,14 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
                     <h2 className="text-2xl font-bold text-slate-800">Configuração de Tags</h2>
                     <div className="flex gap-6 items-start">
                          <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4">
-                            {/* Delimiters Config */}
                             <div className="mb-6 border-b pb-4">
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delimitadores de Tag</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delimitadores</label>
                                 <div className="flex gap-2">
                                     <input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/3 border p-1 rounded text-center text-xs font-mono" placeholder="<<" />
                                     <span className="text-xs text-slate-400 self-center">TAG</span>
                                     <input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/3 border p-1 rounded text-center text-xs font-mono" placeholder=">>" />
                                 </div>
-                                <button onClick={handleSaveDelimiters} className="w-full mt-2 bg-slate-200 text-slate-600 text-xs py-1 rounded hover:bg-slate-300 font-bold">Atualizar Símbolos</button>
+                                <button onClick={handleSaveDelimiters} className="w-full mt-2 bg-slate-200 text-slate-600 text-xs py-1 rounded hover:bg-slate-300 font-bold">Salvar Símbolos</button>
                             </div>
 
                             <h3 className="font-bold text-sm text-slate-500 uppercase mb-4">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
@@ -655,7 +808,7 @@ const AdminPanel = ({ users, setUsers, templates, setTemplates, tagsConfig, setT
                     </div>
                     
                     <div className="w-[35%] bg-white border-l border-gray-300 flex flex-col">
-                        <div className="bg-gray-100 p-2 text-xs font-bold text-gray-500 border-b text-center">Live Preview</div>
+                        <div className="bg-gray-100 p-2 text-xs font-bold text-gray-500 border-b text-center">Preview</div>
                         <div className="flex-1 p-4 overflow-y-auto bg-gray-200">
                             <div className="bg-white shadow-lg min-h-[29.7cm] p-[1cm] text-[10px]" dangerouslySetInnerHTML={{ __html: htmlContent }} />
                         </div>
@@ -776,149 +929,74 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
 };
 
 // ============================================================================
-// HOME PAGE (Redesigned with Changelog)
-// ============================================================================
-const HomePage = ({ onNavigate, user, changelog }) => (
-  <div className="h-full w-full flex flex-col bg-[#f0f4f8] animate-fadeIn overflow-y-auto">
-    <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-black mb-2 tracking-tight">Bem-vindo ao <span className="text-[#00DBFF]">CORE</span></h1>
-        <p className="text-slate-400 text-lg max-w-2xl">Centralize a gestão de ativos, automatize documentos e controle o inventário de TI em uma única plataforma.</p>
-      </div>
-    </div>
-    
-    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
-        {/* Main Actions */}
-        <div className="flex-1">
-            <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Acesso Rápido</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(TOOLS_CONFIG).map(([key, tool]) => (
-                    <div key={key} onClick={() => tool.active && onNavigate(key === 'desligamento' ? 'Desligamento' : '')} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md hover:border-[#00DBFF] cursor-pointer group' : 'opacity-60 cursor-not-allowed grayscale'}`}>
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${tool.active ? 'bg-blue-50 text-[#002233] group-hover:bg-[#00DBFF]' : 'bg-slate-100 text-slate-400'}`}>
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg>
-                        </div>
-                        <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
-                        <p className="text-sm text-slate-500 mt-2 h-10">{tool.desc}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
-
-        {/* Changelog Widget */}
-        <div className="w-full lg:w-80">
-             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">O que há de novo?</h2>
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto custom-scroll">
-                {changelog.map(log => (
-                    <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span>
-                            <span className="text-xs text-slate-400">{log.date}</span>
-                        </div>
-                        <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{log.content}</p>
-                    </div>
-                ))}
-             </div>
-        </div>
-    </div>
-  </div>
-);
-
-// ============================================================================
-// DASHBOARD
-// ============================================================================
-const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog }) => {
-  const [activePage, setActivePage] = useState('Home');
-  const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
-  const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
-  const hasAccess = (toolKey) => {
-      const tool = TOOLS_CONFIG[toolKey];
-      if (!tool || !tool.active) return false;
-      return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
-  };
-
-  return (
-    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
-      <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
-      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
-        <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
-          <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
-          <span className="font-bold text-sm tracking-widest">PROJETO CORE</span>
-        </div>
-        <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
-          <div className="px-3 space-y-1">
-            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
-            </button>
-            <div>
-              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">
-                <div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div>
-                <svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              {expandedMenu.geradores && (
-                <div className="pl-10 pr-2 space-y-1 mt-1">
-                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : hasAccess('desligamento') ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}>Desligamento</button>
-                  <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Telefonia<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
-                  <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Monitores<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
-                </div>
-              )}
-            </div>
-            {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                Administração
-              </button>
-            )}
-          </div>
-        </nav>
-        <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-[#00DBFF] text-[#002233] flex items-center justify-center font-bold text-sm">{user.name.charAt(0)}</div>
-            <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name.split(' ')[0]}</p><p className="text-[10px] text-slate-400 truncate uppercase">{user.role}</p></div>
-            <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
-        </div>
-      </aside>
-      <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
-        <div className="flex-1 relative overflow-hidden flex w-full">
-          {activePage === 'Home' ? <HomePage user={user} onNavigate={setActivePage} changelog={changelog} /> :
-           activePage === 'Admin' ? <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} /> :
-           activePage === 'Desligamento' ? <DynamicGenerator template={templates['desligamento']} tagsConfig={tagsConfig} delimiters={delimiters} moduleId="desligamento" /> :
-           null
-          }
-        </div>
-      </main>
-    </div>
-  );
-};
-
-// ============================================================================
 // APP ROOT
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState(() => { const s = localStorage.getItem('core_users'); return s ? JSON.parse(s) : DEFAULT_USERS; });
-  const [templates, setTemplates] = useState(() => { const s = localStorage.getItem('core_templates'); return s ? JSON.parse(s) : {}; });
-  const [changelog, setChangelog] = useState(() => { const s = localStorage.getItem('core_changelog'); return s ? JSON.parse(s) : DEFAULT_CHANGELOG; });
-  
-  // Migração segura para novo formato de tags (objeto por módulo)
-  const [tagsConfig, setTagsConfig] = useState(() => {
-    const saved = localStorage.getItem('core_tags');
-    try {
-        const parsed = JSON.parse(saved);
-        if (parsed && !Array.isArray(parsed) && parsed.desligamento) return parsed;
-    } catch(e) {}
-    return DEFAULT_TAGS_BY_MODULE;
-  });
+  const [users, setUsers] = useState([]);
+  const [templates, setTemplates] = useState({});
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_BY_MODULE);
+  const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
+  const [changelog, setChangelog] = useState([]);
+  const [dbReady, setDbReady] = useState(false);
 
-  const [delimiters, setDelimiters] = useState(() => {
-    const s = localStorage.getItem('core_delimiters');
-    return s ? JSON.parse(s) : DEFAULT_DELIMITERS;
-  });
+  useEffect(() => {
+      // Autenticação anônima como "serviço" do app
+      signInAnonymously(auth).then(() => {
+          setDbReady(true);
+      }).catch(console.error);
+  }, []);
 
-  useEffect(() => localStorage.setItem('core_users', JSON.stringify(users)), [users]);
-  useEffect(() => localStorage.setItem('core_templates', JSON.stringify(templates)), [templates]);
-  useEffect(() => localStorage.setItem('core_tags', JSON.stringify(tagsConfig)), [tagsConfig]);
-  useEffect(() => localStorage.setItem('core_delimiters', JSON.stringify(delimiters)), [delimiters]);
-  useEffect(() => localStorage.setItem('core_changelog', JSON.stringify(changelog)), [changelog]);
+  // Só conecta aos dados após estar autenticado (dbReady)
+  useEffect(() => {
+      if (!dbReady) return;
+
+      const unsubUsers = onSnapshot(getCollectionRef('users'), (snap) => {
+          const loaded = [];
+          snap.forEach(doc => loaded.push(doc.data()));
+          if(loaded.length === 0) { 
+              DEFAULT_USERS.forEach(u => setDoc(getDocRef('users', u.id), u));
+          } else {
+              setUsers(loaded);
+          }
+      }, (err) => console.log('Waiting for permission...'));
+
+      const unsubTemplates = onSnapshot(getCollectionRef('templates'), (snap) => {
+          const loaded = {};
+          snap.forEach(doc => loaded[doc.id] = doc.data());
+          setTemplates(loaded);
+      }, (err) => console.log('Waiting for permission...'));
+
+      const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
+          const loaded = {};
+          snap.forEach(doc => loaded[doc.id] = doc.data().list);
+          if (Object.keys(loaded).length === 0) {
+              Object.entries(DEFAULT_TAGS_BY_MODULE).forEach(([k, v]) => setDoc(getDocRef('tags', k), { list: v }));
+          } else {
+              setTagsConfig(loaded);
+          }
+      }, (err) => console.log('Waiting for permission...'));
+      
+      const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
+           snap.forEach(doc => {
+               if(doc.id === 'delimiters') setDelimiters(doc.data());
+           });
+      }, (err) => console.log('Waiting for permission...'));
+
+      const unsubChangelog = onSnapshot(getCollectionRef('changelog'), (snap) => {
+          const loaded = [];
+          snap.forEach(doc => loaded.push(doc.data()));
+          if(loaded.length === 0) {
+             DEFAULT_CHANGELOG.forEach(l => setDoc(getDocRef('changelog', l.id), l)); 
+          } else {
+             setChangelog(loaded.sort((a,b) => b.id - a.id));
+          }
+      }, (err) => console.log('Waiting for permission...'));
+
+      return () => {
+          unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog();
+      }
+  }, [dbReady]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
@@ -929,5 +1007,5 @@ export default function App() {
     document.head.appendChild(style);
   }, []);
 
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} /> : <LoginPage onLogin={setUser} users={users} />;
+  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} />;
 }
