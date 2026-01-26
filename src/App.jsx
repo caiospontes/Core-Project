@@ -31,7 +31,6 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Initialize Firebase only once
 let app;
 let auth;
 let db;
@@ -46,7 +45,6 @@ try {
   console.error("Firebase initialization error:", error);
 }
 
-// Paths
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
@@ -61,41 +59,33 @@ const SafePreview = ({ html }) => {
     
     const shadowRoot = containerRef.current.shadowRoot || containerRef.current.attachShadow({ mode: 'open' });
     
-    // Configuração estrita para A4 (210mm x 297mm)
+    // Configuração estrita para A4 na tela (Live Preview)
     shadowRoot.innerHTML = `
       <style>
         :host { 
             display: block; 
             width: 210mm; 
-            min-height: 297mm; 
+            height: 297mm; 
             background: white;
-            overflow: hidden; /* Evita que conteúdo vaze do A4 visualmente */
+            overflow: hidden; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         * { box-sizing: border-box; }
         img { max-width: 100%; height: auto; }
         body { 
             margin: 0; 
-            padding: 0; /* Padding controlado pelo container pai se necessário, ou pelo próprio HTML */
+            padding: 0; 
             font-family: Arial, sans-serif; 
             width: 100%; 
             height: 100%;
         }
         table { border-collapse: collapse; width: 100%; }
-        
-        /* Ajustes específicos para impressão dentro do Shadow DOM */
-        @media print {
-            :host {
-                width: 100%;
-                height: 100%;
-                overflow: visible;
-            }
-        }
       </style>
       ${html}
     `;
   }, [html]);
 
-  return <div ref={containerRef} className="safe-preview-container"></div>;
+  return <div ref={containerRef}></div>;
 };
 
 // ============================================================================
@@ -110,7 +100,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '2.9', date: '2024-01-31', title: 'Impressão A4 Otimizada', content: 'Ajuste fino no layout de impressão para garantir formato A4 sem bordas e preview fiel.' },
+  { id: '1', version: '2.9', date: '2024-01-31', title: 'Impressão A4 & Sessão', content: 'Correção crítica na impressão A4 sem bordas e persistência de login.' },
   { id: '2', version: '2.8', date: '2024-01-30', title: 'Persistência de Sessão', content: 'O sistema agora mantém o usuário logado após recarregar a página.' },
   { id: '3', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
 ];
@@ -173,7 +163,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Login com E-mail/Senha (Simulado)
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
@@ -205,7 +194,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }, 800);
   };
 
-  // Login com Google
   const handleGoogleLogin = async () => {
     if (!dbReady) return alert('Aguarde a conexão com o sistema.');
     
@@ -223,7 +211,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
             if (!foundUser.active) {
                 setError('Sua conta foi desativada pelo administrador.');
                 await signOut(auth); 
-                signInAnonymously(auth); // Retorna para anônimo para manter conexão
+                signInAnonymously(auth); 
             } else {
                 onLogin(foundUser);
             }
@@ -241,7 +229,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
-    // Permite login mesmo se DB não estiver pronto, usando lista padrão local como fallback
     const devUser = users.length > 0 
         ? users.find(u => u.email === 'dev@core.teste') 
         : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
@@ -266,7 +253,6 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         </div>
         
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
-          
           <button 
             type="button" 
             onClick={handleGoogleLogin} 
@@ -282,28 +268,22 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
                 </>
             )}
           </button>
-
           <div className="flex items-center gap-4 mb-6">
             <div className="h-px bg-white/10 flex-1"></div>
             <span className="text-xs text-slate-500 font-bold">OU USE CREDENCIAIS</span>
             <div className="h-px bg-white/10 flex-1"></div>
           </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2 font-bold animate-pulse"><span>⚠️</span> {error}</div>}
-            
             <div>
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             </div>
-            
             <div>
                 <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             </div>
-
             <button type="submit" disabled={loading} className="w-full bg-[#002233] border border-[#00DBFF]/30 text-[#00DBFF] font-bold py-3 rounded-lg hover:bg-[#00DBFF] hover:text-[#002233] transition-all text-sm">
                 Entrar
             </button>
-            
             <div className="pt-2 text-center">
                 <button type="button" onClick={handleDevLogin} className="text-[10px] text-slate-600 hover:text-white transition-colors">
                  Desenvolvedor (Offline/Local)
@@ -321,35 +301,27 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 // ============================================================================
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => {
   const [activeTab, setActiveTab] = useState('templates');
-  
-  // States Templates
   const [targetModule, setTargetModule] = useState('desligamento'); 
   const [uploadStatus, setUploadStatus] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); 
   const [htmlContent, setHtmlContent] = useState('');
   const textAreaRef = useRef(null);
 
-  // States Users
   const [showUserModal, setShowUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
   const [editingUserId, setEditingUserId] = useState(null);
 
-  // States Tags
   const [editingTagId, setEditingTagId] = useState(null);
   const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text' });
   const [tagModuleFilter, setTagModuleFilter] = useState('desligamento');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
 
-  // States Editor Tag Editing (New)
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
-
-  // States Changelog
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // --- Handlers (Firestore wrappers) ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -397,16 +369,13 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || [];
-
       if (!isEdit && currentTags.some(t => t.id === cleanId)) return false;
-
       let updatedTags = [...currentTags];
       if (isEdit && originalId) {
            updatedTags = updatedTags.map(t => t.id === originalId ? { id: cleanId, label, type } : t);
       } else {
            updatedTags.push({ id: cleanId, label, type });
       }
-
       await setDoc(getDocRef('tags', module), { list: updatedTags });
       return true;
   };
@@ -455,9 +424,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
     const userId = editingUserId || Date.now().toString();
     const userData = { ...userForm, id: userId, active: true };
     if (userData.role === 'admin') userData.permissions = ['all'];
-
     if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail já cadastrado.');
-
     await setDoc(getDocRef('users', userId), userData);
     setShowUserModal(false);
     setUserForm({ email: '', name: '', role: 'user', permissions: [] });
@@ -531,7 +498,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      {/* ADMIN SIDEBAR */}
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-[#002233]">Administração</h2>
@@ -547,7 +513,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
-            {/* TEMPLATES */}
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -570,8 +535,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                     </div>
                 </div>
             )}
-
-            {/* TAGS */}
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4">
@@ -615,8 +578,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                      </div>
                 </div>
             )}
-            
-            {/* USERS */}
             {activeTab === 'users' && (
                 <div className="space-y-6">
                     <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
@@ -632,8 +593,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                     </div>
                 </div>
             )}
-
-            {/* CHANGELOG */}
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
                      <div className="bg-white p-6 rounded shadow border">
@@ -658,7 +617,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
         </div>
       </div>
 
-      {/* EDITOR MODAL */}
       {editingTemplate && (
             <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
                 <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
@@ -667,11 +625,9 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                 </div>
                 <div className="flex-1 flex overflow-hidden">
                     <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
-                        
-                        {/* SEÇÃO DE EDIÇÃO DE TAG NO SIDEBAR */}
                         {editorEditingTagId ? (
                              <div className="p-3 bg-[#333] rounded mb-4 border border-blue-500/50">
-                                <h4 className="text-xs font-bold text-blue-400 mb-2">Editar Tag Selecionada</h4>
+                                <h4 className="text-xs font-bold text-blue-400 mb-2">Editar Tag</h4>
                                 <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.id} onChange={e => setEditorTagForm({...editorTagForm, id: e.target.value.toUpperCase()})} placeholder="ID" />
                                 <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.label} onChange={e => setEditorTagForm({...editorTagForm, label: e.target.value})} placeholder="Label" />
                                 <select className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.type} onChange={e => setEditorTagForm({...editorTagForm, type: e.target.value})}>
@@ -699,7 +655,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                                 ))}
                              </div>
                         )}
-
                          <div className="border-t border-[#333] pt-4 mt-2">
                              <input className="bg-[#3c3c3c] text-white text-xs p-1 rounded w-full mb-1" placeholder="Nova Tag" id="quickTagInput" onKeyDown={(e) => { if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value); }} />
                              <p className="text-[9px] text-gray-500">Enter para criar</p>
@@ -718,7 +673,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
             </div>
       )}
 
-      {/* USER MODAL */}
       {showUserModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded shadow-lg w-96">
@@ -787,12 +741,44 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
       return html; // Retorna string HTML processada
   };
 
+  // Função para imprimir A4 sem bordas
+  const handlePrint = () => {
+      const printContent = renderDocument();
+      const printWindow = window.open('', '_blank');
+      
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Imprimir Documento</title>
+            <style>
+                @page { size: A4; margin: 0; }
+                body { margin: 0; padding: 0; width: 210mm; height: 297mm; }
+                img { max-width: 100%; height: auto; }
+                * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                table { border-collapse: collapse; width: 100%; }
+            </style>
+          </head>
+          <body>${printContent}</body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      // Pequeno delay para garantir carregamento de imagens/estilos
+      setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+      }, 500);
+  };
+
   return (
     <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
       <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
           <h2 className="font-bold text-[#002233]">Preenchimento</h2>
-          <button onClick={() => window.print()} className="bg-[#002233] text-white px-3 py-1 rounded text-xs font-bold">IMPRIMIR</button>
+          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            IMPRIMIR
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 custom-scroll">
             {inputs.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma tag configurada para este módulo.</p>}
@@ -810,7 +796,7 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
         </div>
       </div>
       <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
-        <div className="print-area bg-white shadow-2xl w-[21cm] min-h-[29.7cm] p-[1cm] relative mx-auto origin-top">
+        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
             <SafePreview html={renderDocument()} />
         </div>
       </div>
@@ -891,7 +877,7 @@ const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, t
               </button>
               {expandedMenu.geradores && (
                 <div className="pl-10 pr-2 space-y-1 mt-1">
-                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : hasAccess('desligamento') ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}>Desligamento</button>
+                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : hasAccess('desligamento') ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}>Desligamento</button>
                   <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Telefonia<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
                   <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Monitores<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
                 </div>
@@ -939,8 +925,8 @@ export default function App() {
       try {
         const parsed = JSON.parse(session);
         // Verify if still valid against user list
-        const validUser = users.find(u => u.id === parsed.id);
-        if (validUser) setUser(validUser);
+        // Note: Se o usuário foi deletado do banco, ele será deslogado quando a lista de usuários atualizar via Firestore
+        setUser(parsed);
       } catch (e) { localStorage.removeItem('core_session_user'); }
     }
   }, []);
