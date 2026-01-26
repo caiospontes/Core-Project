@@ -42,7 +42,7 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // ============================================================================
-// COMPONENTE: SAFE PREVIEW
+// COMPONENTE: SAFE PREVIEW (A4 FIXO E ISOLAMENTO)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -52,6 +52,7 @@ const SafePreview = ({ html }) => {
     
     const shadowRoot = containerRef.current.shadowRoot || containerRef.current.attachShadow({ mode: 'open' });
     
+    // Configuração estrita para A4 (210mm x 297mm)
     shadowRoot.innerHTML = `
       <style>
         :host { 
@@ -65,8 +66,15 @@ const SafePreview = ({ html }) => {
         }
         * { box-sizing: border-box; }
         img { max-width: 100%; height: auto; }
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; width: 100%; height: 100%; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif; 
+            width: 100%; 
+            height: 100%;
+        }
         table { border-collapse: collapse; width: 100%; }
+        
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -77,7 +85,7 @@ const SafePreview = ({ html }) => {
 };
 
 // ============================================================================
-// DADOS PADRÃO E CONFIGURAÇÕES
+// DADOS PADRÃO (Seeds)
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -114,7 +122,6 @@ const TOOLS_CONFIG = {
   },
 };
 
-// Renomeado para corresponder ao uso no App
 const DEFAULT_TAGS_WITH_SESSIONS = {
   desligamento: {
     sessions: [
@@ -155,7 +162,7 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 </div>`;
 
 // ============================================================================
-// COMPONENTE: LOGIN PAGE
+// LOGIN PAGE
 // ============================================================================
 const LoginPage = ({ onLogin, users, dbReady }) => {
   const [email, setEmail] = useState('');
@@ -196,13 +203,17 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 
   const handleGoogleLogin = async () => {
     if (!dbReady) return alert('Aguarde a conexão com o sistema.');
+    
     const provider = new GoogleAuthProvider();
     setLoading(true);
     setError('');
+
     try {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
+        
         const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
+
         if (foundUser) {
             if (!foundUser.active) {
                 setError('Sua conta foi desativada pelo administrador.');
@@ -212,7 +223,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
                 onLogin(foundUser);
             }
         } else {
-            setError('Este e-mail Google não possui convite.');
+            setError('Este e-mail Google não possui convite para acessar o sistema.');
             await signOut(auth);
             signInAnonymously(auth);
         }
@@ -267,7 +278,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 };
 
 // ============================================================================
-// COMPONENTE: ADMIN PANEL
+// PAINEL ADMINISTRATIVO
 // ============================================================================
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => {
   const [activeTab, setActiveTab] = useState('templates');
@@ -291,7 +302,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
   const [newSessionName, setNewSessionName] = useState('');
 
-  // States Editor Tag Editing
+  // States Editor Tag Editing (New)
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
@@ -299,7 +310,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // --- Handlers ---
+  // --- Handlers (Firestore wrappers) ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -309,9 +320,10 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
+              const content = ev.target.result;
               await setDoc(getDocRef('templates', targetModule), {
                   name: file.name,
-                  content: ev.target.result,
+                  content: content,
                   date: new Date().toLocaleDateString(),
                   type: 'html'
               });
@@ -421,11 +433,25 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
       }
   };
 
+  const handleSaveTagInEditor = async (e) => {
+    e.preventDefault();
+    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
+    if(success) {
+        setEditorEditingTagId(null);
+        setEditorTagForm({ id: '', label: '', type: 'text' });
+    } else {
+        alert("Erro ao editar tag.");
+    }
+  };
+
   const handleEditTagClick = (tag, sessionId, index) => {
       setEditingTag({ sessionId, tagIndex: index, tagData: tag });
       setEditingTagId(tag.id); // Apenas visual
       setTagForm({ ...tag, sessionId });
   };
+  
+  // State for tracking editing tag logic in panel
+  const [editingTag, setEditingTag] = useState(null);
 
   const handleSaveDelimiters = async () => {
     await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
@@ -461,14 +487,32 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
 
   // --- EDITOR SAVE ---
-  const handleSaveTagInEditor = async (e) => {
-    e.preventDefault();
-    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
-    if(success) {
-        setEditorEditingTagId(null);
-        setEditorTagForm({ id: '', label: '', type: 'text' });
-    } else {
-        alert("Erro ao editar tag.");
+  const handleCreateCustomTagInEditor = async (tagInput) => {
+    if(!tagInput) return;
+    const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const tagText = `${delimiters.prefix}${cleanId}${delimiters.suffix}`;
+    const textarea = textAreaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      setHtmlContent(text.substring(0, start) + tagText + text.substring(end));
+    }
+    // Simplificado para criar na primeira sessão disponível ou criar uma nova se não existir
+    const currentConfig = tagsConfig[editingTemplate] || { sessions: [] };
+    let session = currentConfig.sessions[0];
+    if(!session) {
+        session = { id: 'geral', title: 'Geral', active: true, tags: [] };
+        currentConfig.sessions.push(session);
+    }
+    
+    // Check duplication
+    let exists = false;
+    currentConfig.sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
+    
+    if (!exists) {
+        session.tags.push({ id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' });
+        await setDoc(getDocRef('tags', editingTemplate), currentConfig);
     }
   };
 
@@ -512,13 +556,13 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
                             <div className="flex gap-2 mb-2"><input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /><input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /></div>
                             <button onClick={handleSaveDelimiters} className="w-full bg-slate-200 text-xs py-1 rounded font-bold">Salvar Símbolos</button>
                         </div>
-                        <form onSubmit={handleSaveTag} className="space-y-3">
+                        <form onSubmit={handleSaveTagPanel} className="space-y-3">
                             <h3 className="font-bold text-sm text-[#002233]">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
                             <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border p-2 rounded text-sm" required><option value="">Selecione a Sessão...</option>{(tagsConfig[tagModuleFilter]?.sessions || []).map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select>
                             <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID" required />
                             <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo" required />
                             <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm"><option value="text">Texto</option><option value="date">Data</option><option value="email">E-mail</option></select>
-                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTagId ? 'Atualizar' : 'Criar'}</button>{editingTagId && <button type="button" onClick={() => { setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
+                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTagId ? 'Atualizar' : 'Criar'}</button>{editingTagId && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
                      <div className="flex-1 space-y-4">
@@ -633,7 +677,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 };
 
 // ============================================================================
-// COMPONENTE: GERADOR DINÂMICO
+// GERADOR DINÂMICO
 // ============================================================================
 const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
   const [formData, setFormData] = useState({});
