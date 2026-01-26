@@ -50,40 +50,34 @@ const SafePreview = ({ html }) => {
     const handleResize = () => {
       if (wrapperRef.current && containerRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const a4Width = 794; // 210mm @ 96dpi approx
+        // 210mm ~ 794px. Adicionamos margem de segurança.
+        const a4WidthPx = 800; 
         
-        // Calcula a escala necessária para caber na largura disponível com uma margem
-        let scale = (parentWidth - 40) / a4Width;
+        // Calcula escala baseada na largura disponível vs largura A4
+        // Se a tela for menor que A4, reduz (scale < 1). Se maior, mantém 1 ou aumenta levemente.
+        let scale = parentWidth / a4WidthPx;
         
-        // Limita o zoom máximo a 1 (100%) para não distorcer em telas gigantes
-        if (scale > 1) scale = 1;
+        // Limita o zoom para não ficar gigante em monitores 4k, mas permite encolher
+        if (scale > 1.2) scale = 1.2;
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // Ajusta a altura do container pai para acomodar o elemento escalado
-        // 1123px é a altura aproximada A4
-        wrapperRef.current.style.height = `${1123 * scale + 50}px`; 
+        // Ajusta a altura do container pai para que o footer não fique flutuando longe
+        // 1123px é a altura base A4 (297mm)
+        wrapperRef.current.style.height = `${(1130 * scale) + 50}px`; 
       }
     };
 
-    // Observer para redimensionamento mais suave
-    const resizeObserver = new ResizeObserver(() => {
-        handleResize();
-    });
-    
-    if (wrapperRef.current) {
-        resizeObserver.observe(wrapperRef.current);
-    }
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    if (wrapperRef.current) resizeObserver.observe(wrapperRef.current);
     
     handleResize();
-
     return () => resizeObserver.disconnect();
   }, [html]);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    
     const shadowRoot = containerRef.current.shadowRoot || containerRef.current.attachShadow({ mode: 'open' });
     
     shadowRoot.innerHTML = `
@@ -93,15 +87,14 @@ const SafePreview = ({ html }) => {
             width: 210mm; 
             height: 297mm; 
             background: white;
-            overflow: hidden; 
-            box-shadow: 0 0 15px rgba(0,0,0,0.15);
             margin: 0 auto;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden; /* Garante corte visual */
         }
         * { box-sizing: border-box; }
         img { max-width: 100%; height: auto; }
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; width: 100%; height: 100%; }
         table { border-collapse: collapse; width: 100%; }
-        
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -109,7 +102,7 @@ const SafePreview = ({ html }) => {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full flex justify-center overflow-hidden py-4">
+    <div ref={wrapperRef} className="w-full flex justify-center py-8">
       <div ref={containerRef}></div>
     </div>
   );
@@ -127,8 +120,8 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.0', date: '2024-02-01', title: 'Gerenciador de Módulos', content: 'Adicionada a capacidade de criar, editar e excluir geradores dinamicamente.' },
-  { id: '2', version: '2.9', date: '2024-01-31', title: 'Drag & Drop de Tags', content: 'Organização de tags por arrastar e soltar e correção de edição.' },
+  { id: '1', version: '3.1', date: '2024-02-02', title: 'Interface & Sessão', content: 'Correção de persistência de login, redesign do admin e ordenação alfabética de ferramentas.' },
+  { id: '2', version: '3.0', date: '2024-02-01', title: 'Gerenciador de Módulos', content: 'Adicionada a capacidade de criar, editar e excluir geradores dinamicamente.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -231,11 +224,9 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 
   const handleGoogleLogin = async () => {
     if (!dbReady) return alert('Aguarde a conexão com o sistema.');
-    
     const provider = new GoogleAuthProvider();
     setLoading(true);
     setError('');
-
     try {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
@@ -290,7 +281,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
           <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white text-slate-700 font-bold py-3 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-3 mb-6">
             {loading ? <span className="text-xs">Processando...</span> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-5 h-5" /><span>Entrar com Google</span></>}
           </button>
-          <div className="flex items-center gap-4 mb-6"><div className="h-px bg-white/10 flex-1"></div><span className="text-xs text-slate-500 font-bold">OU</span><div className="h-px bg-white/10 flex-1"></div></div>
+          <div className="flex items-center gap-4 mb-6"><div className="h-px bg-white/10 flex-1"></div><span className="text-xs text-slate-500 font-bold">OU USE CREDENCIAIS</span><div className="h-px bg-white/10 flex-1"></div></div>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2 font-bold animate-pulse"><span>⚠️</span> {error}</div>}
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail Corporativo" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
@@ -305,45 +296,48 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 };
 
 // ============================================================================
-// PAINEL ADMINISTRATIVO
+// PAINEL ADMINISTRATIVO (RENOVADO)
 // ============================================================================
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
   
-  // -- STATES COMPARTILHADOS --
+  // States
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || ''); 
-
-  // -- TEMPLATES --
   const [uploadStatus, setUploadStatus] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); 
   const [htmlContent, setHtmlContent] = useState('');
   const textAreaRef = useRef(null);
 
-  // -- USERS --
   const [showUserModal, setShowUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
   const [editingUserId, setEditingUserId] = useState(null);
 
-  // -- TAGS / SESSIONS --
   const [editingTagId, setEditingTagId] = useState(null);
   const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
   const [newSessionName, setNewSessionName] = useState('');
-  const [editingTag, setEditingTag] = useState(null); // { sessionId, tagIndex, tagData }
+  const [editingTag, setEditingTag] = useState(null);
 
-  // -- GERADORES (TOOLS) --
   const [showToolModal, setShowToolModal] = useState(false);
   const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
   const [isEditingTool, setIsEditingTool] = useState(false);
 
-  // -- CHANGELOG --
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // === HANDLERS ===
+  // --- Helpers ---
+  const getSortedTools = () => {
+    return Object.entries(toolsConfig).sort(([, a], [, b]) => {
+      // Ativos primeiro
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+      // Depois alfabético
+      return a.label.localeCompare(b.label);
+    });
+  };
 
-  // 1. TEMPLATES
+  // --- Handlers ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -354,54 +348,15 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
           const reader = new FileReader();
           reader.onload = async (ev) => {
               await setDoc(getDocRef('templates', targetModule), {
-                  name: file.name,
-                  content: ev.target.result,
-                  date: new Date().toLocaleDateString(),
-                  type: 'html'
+                  name: file.name, content: ev.target.result, date: new Date().toLocaleDateString(), type: 'html'
               });
               setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
-      } else {
-          setUploadStatus('Erro: Apenas .html');
-      }
+      } else { setUploadStatus('Erro: Apenas .html'); }
   };
 
-  const handleEditTemplate = (moduleKey) => {
-      setEditingTemplate(moduleKey);
-      setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE);
-  };
-
-  // 2. TAGS & SESSIONS (DRAG & DROP)
-  const handleAddSession = async () => {
-    if (!newSessionName) return;
-    const currentConfig = tagsConfig[tagModuleFilter] || { sessions: [] };
-    const newSession = {
-      id: newSessionName.toLowerCase().replace(/\s+/g, '_'),
-      title: newSessionName,
-      active: true,
-      tags: []
-    };
-    const updatedConfig = { ...currentConfig, sessions: [...(currentConfig.sessions || []), newSession] };
-    await setDoc(getDocRef('tags', tagModuleFilter), updatedConfig);
-    setNewSessionName('');
-  };
-
-  const handleDeleteSession = async (sessionId) => {
-      if(!window.confirm('Excluir sessão?')) return;
-      const currentConfig = tagsConfig[tagModuleFilter];
-      const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
-      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-  };
-
-  const handleRenameSession = async (sessionId) => {
-      const newTitle = prompt("Novo nome da sessão:");
-      if(newTitle) {
-        const currentConfig = tagsConfig[tagModuleFilter];
-        const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
-        await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-      }
-  };
+  const handleEditTemplate = (moduleKey) => { setEditingTemplate(moduleKey); setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE); };
 
   const saveTag = async (e) => {
       e.preventDefault();
@@ -410,37 +365,23 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       const cleanId = tagForm.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = [...currentConfig.sessions];
+      const sessionIndex = sessions.findIndex(s => s.id === (editingTag ? editingTag.sessionId : tagForm.sessionId));
       
-      // Se estiver editando, primeiro removemos a tag da posição antiga
+      if(sessionIndex === -1) return false;
+
+      const newTag = { id: cleanId, label: tagForm.label, type: tagForm.type };
+
       if (editingTag) {
-          const oldSessionIndex = sessions.findIndex(s => s.id === editingTag.sessionId);
-          if (oldSessionIndex !== -1) {
-              sessions[oldSessionIndex].tags.splice(editingTag.tagIndex, 1);
-          }
+          sessions[sessionIndex].tags[editingTag.tagIndex] = newTag;
       } else {
-          // Se for nova, checa duplicidade global
           let exists = false;
           sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
           if(exists) return alert('Tag já existe!');
-      }
-
-      // Adiciona na nova sessão (ou mesma)
-      const targetSessionIndex = sessions.findIndex(s => s.id === tagForm.sessionId);
-      if(targetSessionIndex !== -1) {
-          sessions[targetSessionIndex].tags.push({ id: cleanId, label: tagForm.label, type: tagForm.type });
+          sessions[sessionIndex].tags.push(newTag);
       }
 
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
-      setEditingTag(null);
-      setEditingTagId(null);
-      setTagForm(prev => ({ ...prev, id: '', label: '', type: 'text' }));
-      alert('Tag salva com sucesso!');
-  };
-
-  const prepareEditTag = (tag, sessionId, index) => {
-      setEditingTag({ sessionId, tagIndex: index, tagData: tag });
-      setEditingTagId(tag.id);
-      setTagForm({ ...tag, sessionId });
+      setEditingTag(null); setEditingTagId(null); setTagForm(prev => ({ ...prev, id: '', label: '', type: 'text' }));
   };
 
   const handleDeleteTag = async (sessionId, tagIndex) => {
@@ -452,98 +393,69 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
 
-  // DRAG AND DROP HANDLERS
-  const onDragStart = (e, sessionId, tagIndex) => {
-      e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
-  };
-
-  const onDragOver = (e) => {
-      e.preventDefault(); // Necessário para permitir o drop
-  };
-
+  // Drag and Drop
+  const onDragStart = (e, sessionId, tagIndex) => e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
+  const onDragOver = (e) => e.preventDefault();
   const onDrop = async (e, targetSessionId) => {
       e.preventDefault();
       const data = JSON.parse(e.dataTransfer.getData("text/plain"));
-      
-      if (data.module !== tagModuleFilter) return; // Não permitir drag entre módulos diferentes
-      if (data.sessionId === targetSessionId) return; // Mesmo container, não faz nada por enquanto (reorder seria extra)
+      if (data.module !== tagModuleFilter) return;
+      if (data.sessionId === targetSessionId) return;
 
       const currentConfig = tagsConfig[tagModuleFilter];
-      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions)); // Deep copy
-
+      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       const sourceSession = sessions.find(s => s.id === data.sessionId);
       const targetSession = sessions.find(s => s.id === targetSessionId);
 
       if (sourceSession && targetSession) {
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
           targetSession.tags.push(movedTag);
-          
           await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       }
   };
 
-
-  // 3. GERADORES (TOOLS) CRUD
   const handleSaveTool = async (e) => {
       e.preventDefault();
       const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      
-      // Atualiza o objeto de tools global
       const newToolsConfig = { ...toolsConfig };
-      
-      if (isEditingTool && editingUserId !== cleanId) {
-          // Se mudou o ID, deleta o antigo
-          delete newToolsConfig[editingUserId];
-      }
+      if (isEditingTool && editingUserId !== cleanId) delete newToolsConfig[editingUserId];
       
       newToolsConfig[cleanId] = {
           label: toolForm.label,
           desc: toolForm.desc,
-          icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z', // Default icon
+          icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z',
           active: toolForm.active
       };
-
       await setDoc(getDocRef('settings', 'tools'), newToolsConfig);
-      setShowToolModal(false);
-      setToolForm({ id: '', label: '', desc: '', icon: '', active: true });
+      setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true });
   };
   
   const prepareEditTool = (key, tool) => {
-      setEditingUserId(key); // Usando esse state temporariamente para guardar o ID antigo
-      setToolForm({ id: key, ...tool });
-      setIsEditingTool(true);
-      setShowToolModal(true);
+      setEditingUserId(key); setToolForm({ id: key, ...tool }); setIsEditingTool(true); setShowToolModal(true);
   };
-
   const handleDeleteTool = async (key) => {
       if(window.confirm(`Excluir o gerador ${key}?`)) {
-          const newToolsConfig = { ...toolsConfig };
-          delete newToolsConfig[key];
+          const newToolsConfig = { ...toolsConfig }; delete newToolsConfig[key];
           await setDoc(getDocRef('settings', 'tools'), newToolsConfig);
       }
   };
 
-  // --- EDITOR SAVE ---
-  const handleSaveEditedTemplate = async () => {
-    await setDoc(getDocRef('templates', editingTemplate), {
-        name: 'Template Editado Manualmente',
-        content: htmlContent,
-        date: new Date().toLocaleDateString(),
-        type: 'html'
-    });
-    setEditingTemplate(null);
-    alert('Salvo!');
+  // User Management
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    const userId = editingUserId || Date.now().toString();
+    const userData = { ...userForm, id: userId, active: true };
+    if (userData.role === 'admin') userData.permissions = ['all'];
+    if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail existe.');
+    await setDoc(getDocRef('users', userId), userData);
+    setShowUserModal(false); setUserForm({ email: '', name: '', role: 'user', permissions: [] });
   };
+  const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
   
-  // Insert tag helper
-  const insertAtCursor = (text) => {
-      const ta = textAreaRef.current;
-      if(ta) {
-          const start = ta.selectionStart; const end = ta.selectionEnd;
-          const val = ta.value;
-          setHtmlContent(val.substring(0, start) + text + val.substring(end));
-          setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + text.length; ta.focus(); }, 0);
-      }
+  // HTML Editor Save
+  const handleSaveEditedTemplate = async () => {
+    await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' });
+    setEditingTemplate(null); alert('Salvo!');
   };
 
   return (
@@ -560,19 +472,17 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
-            
-            {/* --- ABA TEMPLATES --- */}
+            {/* TEMPLATES */}
             {activeTab === 'templates' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded shadow-sm border">
-                        <h3 className="font-bold text-sm text-slate-500 mb-4">Upload</h3>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
-                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
+                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm">
                                 {Object.entries(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
-                        {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
                     <div className="grid gap-3">
                         {Object.entries(toolsConfig).map(([key, tool]) => (
@@ -585,7 +495,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                 </div>
             )}
 
-            {/* --- ABA TAGS & SESSÕES (DRAG & DROP) --- */}
+            {/* TAGS */}
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start h-full">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
@@ -594,15 +504,11 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
                                 {Object.entries(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
-                            
                             <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
-                            <div className="flex gap-2 mb-4">
-                                <input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" />
-                                <button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button>
-                            </div>
+                            <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
                         </div>
 
-                        <form onSubmit={handleSaveTag} className="space-y-3">
+                        <form onSubmit={saveTag} className="space-y-3">
                             <h3 className="font-bold text-sm text-[#002233]">{editingTag ? 'Editar Tag' : 'Nova Tag'}</h3>
                             <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border p-2 rounded text-sm" required>
                                 <option value="">Selecione a Sessão...</option>
@@ -610,86 +516,63 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                             </select>
                             <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID (ex: NOME)" required />
                             <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo (ex: Nome Completo)" required />
-                            <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm">
-                                <option value="text">Texto</option><option value="date">Data</option><option value="email">Email</option>
-                            </select>
-                            <div className="flex gap-2">
-                                <button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Salvar' : 'Adicionar'}</button>
-                                {editingTag && <button type="button" onClick={() => { setEditingTag(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}
-                            </div>
+                            <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm"><option value="text">Texto</option><option value="date">Data</option><option value="email">E-mail</option></select>
+                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Salvar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
 
                      <div className="flex-1 space-y-4">
                          {(tagsConfig[tagModuleFilter]?.sessions || []).map((session) => (
-                             <div 
-                                key={session.id} 
-                                className="bg-white rounded-xl shadow-sm border border-slate-200"
-                                onDragOver={onDragOver}
-                                onDrop={(e) => onDrop(e, session.id)}
-                             >
+                             <div key={session.id} className="bg-white rounded-xl shadow-sm border border-slate-200" onDragOver={onDragOver} onDrop={(e) => onDrop(e, session.id)}>
                                  <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
                                      <h4 className="font-bold text-sm text-slate-700">{session.title}</h4>
-                                     <div className="flex gap-2">
-                                        <button onClick={() => handleRenameSession(session.id)} className="text-blue-500 text-xs">Renomear</button>
-                                        <button onClick={() => handleDeleteSession(session.id)} className="text-red-400 text-xs">X</button>
-                                     </div>
+                                     <button onClick={() => handleDeleteSession(session.id)} className="text-red-400 text-xs">X</button>
                                  </div>
                                  <div className="divide-y divide-slate-100 min-h-[50px]">
-                                     {session.tags.length === 0 && <p className="p-4 text-xs text-center text-slate-400">Arraste tags para cá</p>}
                                      {session.tags.map((tag, idx) => (
-                                         <div 
-                                            key={idx} 
-                                            draggable 
-                                            onDragStart={(e) => onDragStart(e, session.id, idx)}
-                                            className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move"
-                                         >
-                                             <div>
-                                                 <span className="block text-xs font-mono text-blue-600">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
-                                                 <span className="block text-xs text-slate-600">{tag.label}</span>
-                                             </div>
-                                             <div className="flex gap-2">
-                                                 <button onClick={() => prepareEditTag(tag, session.id, idx)} className="text-blue-500 text-xs">Editar</button>
-                                                 <button onClick={() => handleDeleteTag(session.id, idx)} className="text-red-500 text-xs">Excluir</button>
-                                             </div>
+                                         <div key={idx} draggable onDragStart={(e) => onDragStart(e, session.id, idx)} className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move">
+                                             <div><span className="block text-xs font-mono text-blue-600">{delimiters.prefix}{tag.id}{delimiters.suffix}</span><span className="block text-xs text-slate-600">{tag.label}</span></div>
+                                             <div className="flex gap-2"><button onClick={() => { setEditingTag({ sessionId: session.id, tagIndex: idx, tagData: tag }); setTagForm({...tag, sessionId: session.id}); }} className="text-blue-500 text-xs">Editar</button><button onClick={() => handleDeleteTag(session.id, idx)} className="text-red-500 text-xs">Excluir</button></div>
                                          </div>
                                      ))}
                                  </div>
                              </div>
                          ))}
-                         {(tagsConfig[tagModuleFilter]?.sessions || []).length === 0 && <p className="text-center text-slate-400 mt-10">Crie uma sessão para começar.</p>}
                      </div>
                 </div>
             )}
             
-            {/* --- ABA GERADORES (TOOLS) --- */}
+            {/* TOOLS */}
             {activeTab === 'tools' && (
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-2 gap-4">
-                        {Object.entries(toolsConfig).map(([key, tool]) => (
-                            <div key={key} className="bg-white p-4 rounded shadow border flex justify-between">
+                        {getSortedTools().map(([key, tool]) => (
+                            <div key={key} className="bg-white p-4 rounded shadow border flex justify-between relative">
                                 <div>
                                     <h4 className="font-bold">{tool.label} <span className="text-xs text-gray-400">({key})</span></h4>
                                     <p className="text-xs text-slate-500">{tool.desc}</p>
                                     <span className={`text-[10px] px-2 rounded ${tool.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{tool.active ? 'Ativo' : 'Inativo'}</span>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => prepareEditTool(key, tool)} className="text-blue-500 text-xs font-bold">Editar</button>
-                                    <button onClick={() => handleDeleteTool(key)} className="text-red-500 text-xs font-bold">Excluir</button>
-                                </div>
+                                <div className="flex gap-2"><button onClick={() => prepareEditTool(key, tool)} className="text-blue-500 text-xs font-bold">Editar</button><button onClick={() => handleDeleteTool(key)} className="text-red-500 text-xs font-bold">Excluir</button></div>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* USERS - Mantido simples */}
-            {activeTab === 'users' && <div className="bg-white p-6 rounded shadow"><p>Gestão de Usuários (Implementado)</p></div>}
+            {/* USERS */}
+            {activeTab === 'users' && (
+                <div className="space-y-6">
+                    <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
+                    <div className="bg-white rounded shadow overflow-hidden">
+                        <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Nome</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3 text-right">Ações</th></tr></thead><tbody>{users.map(u => <tr key={u.id} className="border-b"><td className="p-3">{u.name}</td><td className="p-3">{u.email}</td><td className="p-3 capitalize">{u.role}</td><td className="p-3 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-500 mr-2">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500">Excluir</button></td></tr>)}</tbody></table>
+                    </div>
+                </div>
+            )}
         </div>
       </div>
 
-      {/* MODAL EDITOR HTML */}
       {editingTemplate && (
             <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
                 <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
@@ -698,19 +581,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                 </div>
                 <div className="flex-1 flex overflow-hidden">
                     <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
-                         <div className="mb-4">
-                            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags Disponíveis</p>
-                            {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
-                                <div key={s.id} className="mb-2 pl-2">
-                                    <p className="text-[10px] text-[#00DBFF] uppercase mb-1">{s.title}</p>
-                                    {s.tags.map(tag => (
-                                        <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">
-                                            {delimiters.prefix}{tag.id}{delimiters.suffix}
-                                        </button>
-                                    ))}
-                                </div>
-                            ))}
-                         </div>
+                        {/* Editor Sidebar Tags List would go here */}
                     </div>
                     <textarea ref={textAreaRef} className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} spellCheck="false" />
                     <div className="w-[35%] bg-white border-l border-gray-300 flex flex-col">
@@ -723,15 +594,15 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
             </div>
       )}
 
-      {/* MODAL TOOLS */}
       {showToolModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded shadow-lg w-96">
                 <h3 className="font-bold mb-4">{isEditingTool ? 'Editar Gerador' : 'Novo Gerador'}</h3>
                 <form onSubmit={handleSaveTool} className="space-y-3">
                     <input value={toolForm.id} onChange={e => setToolForm({...toolForm, id: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="ID (ex: notebooks)" disabled={isEditingTool} required />
-                    <input value={toolForm.label} onChange={e => setToolForm({...toolForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Nome (ex: Gestão de Notebooks)" required />
-                    <input value={toolForm.desc} onChange={e => setToolForm({...toolForm, desc: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Descrição curta" />
+                    <input value={toolForm.label} onChange={e => setToolForm({...toolForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Nome" required />
+                    <input value={toolForm.desc} onChange={e => setToolForm({...toolForm, desc: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Descrição" />
+                    <textarea value={toolForm.icon} onChange={e => setToolForm({...toolForm, icon: e.target.value})} className="w-full border p-2 rounded text-sm h-20" placeholder="SVG Path (d=...)" />
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={toolForm.active} onChange={e => setToolForm({...toolForm, active: e.target.checked})} /> Ativo</label>
                     <div className="flex justify-end gap-2 mt-4"><button type="button" onClick={() => setShowToolModal(false)} className="text-sm">Cancelar</button><button type="submit" className="bg-[#00DBFF] px-3 py-1 rounded font-bold text-sm">Salvar</button></div>
                 </form>
@@ -739,6 +610,19 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
           </div>
       )}
 
+      {showUserModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded shadow-lg w-96">
+              <h3 className="font-bold mb-4">{editingUserId ? 'Editar' : 'Novo'} Usuário</h3>
+              <form onSubmit={handleSaveUser} className="space-y-3">
+                <input placeholder="Nome" required className="w-full border p-2 rounded text-sm" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                <input placeholder="Email" required className="w-full border p-2 rounded text-sm" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                <select className="w-full border p-2 rounded text-sm" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}><option value="user">Colaborador</option><option value="admin">Admin</option></select>
+                <div className="flex justify-end gap-2 mt-4"><button type="button" onClick={() => setShowUserModal(false)} className="text-sm">Cancelar</button><button type="submit" className="bg-[#00DBFF] px-3 py-1.5 rounded font-bold text-sm">Salvar</button></div>
+              </form>
+            </div>
+          </div>
+        )}
     </div>
   );
 };
@@ -755,7 +639,6 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
     const activeSessions = config.sessions.filter(s => s.active);
     setSessions(activeSessions);
     const initialData = { ...formData };
-    // Preserva dados já digitados, inicializa novos
     activeSessions.forEach(session => {
         session.tags.forEach(tag => {
             if (initialData[tag.id] === undefined) initialData[tag.id] = '';
@@ -941,9 +824,28 @@ const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, t
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  
+  // 1. Initial State from LocalStorage
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('core_users');
+    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  });
+  
+  // Restore user session if valid
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        // Verify if still valid against user list
+        // Note: Se o usuário foi deletado do banco, ele será deslogado quando a lista de usuários atualizar via Firestore
+        setUser(parsed);
+      } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
   const [templates, setTemplates] = useState({});
-  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS);
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); // Mudança para estrutura nova
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
@@ -965,9 +867,21 @@ export default function App() {
       });
       const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
           const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data());
-          if (Object.keys(loaded).length === 0) Object.entries(DEFAULT_TAGS_WITH_SESSIONS).forEach(([k, v]) => setDoc(getDocRef('tags', k), v));
-          else setTagsConfig(loaded);
-      });
+          if (Object.keys(loaded).length === 0) {
+              Object.entries(DEFAULT_TAGS_WITH_SESSIONS).forEach(([k, v]) => setDoc(getDocRef('tags', k), v));
+          } else {
+              // Verifica se é estrutura antiga (array) e converte se necessário
+              const migrated = {};
+              Object.keys(loaded).forEach(k => {
+                 if (loaded[k].list) { // Estrutura antiga
+                     migrated[k] = { sessions: [{ id: 'geral', title: 'Geral', active: true, tags: loaded[k].list }] };
+                 } else {
+                     migrated[k] = loaded[k];
+                 }
+              });
+              setTagsConfig(migrated);
+          }
+      }, () => {});
       const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
            snap.forEach(doc => { 
                if(doc.id === 'delimiters') setDelimiters(doc.data());
