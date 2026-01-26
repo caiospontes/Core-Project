@@ -51,7 +51,7 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // ============================================================================
-// COMPONENTE: SAFE PREVIEW (ISOLAMENTO DE CSS)
+// COMPONENTE: SAFE PREVIEW (A4 FIXO E ISOLAMENTO)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -61,18 +61,41 @@ const SafePreview = ({ html }) => {
     
     const shadowRoot = containerRef.current.shadowRoot || containerRef.current.attachShadow({ mode: 'open' });
     
+    // Configuração estrita para A4 (210mm x 297mm)
     shadowRoot.innerHTML = `
       <style>
-        :host { display: block; width: 100%; height: 100%; }
+        :host { 
+            display: block; 
+            width: 210mm; 
+            min-height: 297mm; 
+            background: white;
+            overflow: hidden; /* Evita que conteúdo vaze do A4 visualmente */
+        }
+        * { box-sizing: border-box; }
         img { max-width: 100%; height: auto; }
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        table { border-collapse: collapse; }
+        body { 
+            margin: 0; 
+            padding: 0; /* Padding controlado pelo container pai se necessário, ou pelo próprio HTML */
+            font-family: Arial, sans-serif; 
+            width: 100%; 
+            height: 100%;
+        }
+        table { border-collapse: collapse; width: 100%; }
+        
+        /* Ajustes específicos para impressão dentro do Shadow DOM */
+        @media print {
+            :host {
+                width: 100%;
+                height: 100%;
+                overflow: visible;
+            }
+        }
       </style>
       ${html}
     `;
   }, [html]);
 
-  return <div ref={containerRef} className="w-full h-full"></div>;
+  return <div ref={containerRef} className="safe-preview-container"></div>;
 };
 
 // ============================================================================
@@ -87,9 +110,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '2.8', date: '2024-01-30', title: 'Persistência de Sessão', content: 'O sistema agora mantém o usuário logado após recarregar a página.' },
-  { id: '2', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
-  { id: '3', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
+  { id: '1', version: '2.9', date: '2024-01-31', title: 'Impressão A4 Otimizada', content: 'Ajuste fino no layout de impressão para garantir formato A4 sem bordas e preview fiel.' },
+  { id: '2', version: '2.8', date: '2024-01-30', title: 'Persistência de Sessão', content: 'O sistema agora mantém o usuário logado após recarregar a página.' },
+  { id: '3', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
 ];
 
 const TOOLS_CONFIG = {
