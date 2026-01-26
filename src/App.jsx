@@ -87,7 +87,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '2.8', date: '2024-01-30', title: 'Sincronização de Tags', content: 'Formulários agora refletem exatamente as tags configuradas no sistema.' },
+  { id: '1', version: '2.8', date: '2024-01-30', title: 'Persistência de Sessão', content: 'O sistema agora mantém o usuário logado após recarregar a página.' },
   { id: '2', version: '2.7', date: '2024-01-29', title: 'Editor de Tags Avançado', content: 'Edição e remoção de tags diretamente no editor HTML.' },
   { id: '3', version: '2.6', date: '2024-01-28', title: 'Integração Firebase', content: 'Login Google e Banco de Dados ativados.' },
 ];
@@ -150,6 +150,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Login com E-mail/Senha (Simulado)
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
@@ -181,6 +182,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     }, 800);
   };
 
+  // Login com Google
   const handleGoogleLogin = async () => {
     if (!dbReady) return alert('Aguarde a conexão com o sistema.');
     
@@ -198,7 +200,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
             if (!foundUser.active) {
                 setError('Sua conta foi desativada pelo administrador.');
                 await signOut(auth); 
-                signInAnonymously(auth);
+                signInAnonymously(auth); // Retorna para anônimo para manter conexão
             } else {
                 onLogin(foundUser);
             }
@@ -216,6 +218,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
+    // Permite login mesmo se DB não estiver pronto, usando lista padrão local como fallback
     const devUser = users.length > 0 
         ? users.find(u => u.email === 'dev@core.teste') 
         : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
@@ -324,8 +327,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
   const [editingLogId, setEditingLogId] = useState(null);
 
   // --- Handlers (Firestore wrappers) ---
-  // Nota: Estas funções são "props" ou context em um app real. Aqui simulamos a chamada direta ao DB.
-  
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -507,6 +508,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog }) => 
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
+      {/* ADMIN SIDEBAR */}
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100">
             <h2 className="text-xl font-black text-[#002233]">Administração</h2>
@@ -866,7 +868,7 @@ const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, t
               </button>
               {expandedMenu.geradores && (
                 <div className="pl-10 pr-2 space-y-1 mt-1">
-                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : 'text-slate-400 hover:text-white'}`}>Desligamento</button>
+                  <button onClick={() => hasAccess('desligamento') && setActivePage('Desligamento')} className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === 'Desligamento' ? 'bg-white/10 text-[#00DBFF]' : hasAccess('desligamento') ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}>Desligamento</button>
                   <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Telefonia<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
                   <button className="w-full text-left px-3 py-1.5 rounded text-xs font-medium text-slate-600 cursor-not-allowed flex justify-between items-center">Monitores<svg className="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></button>
                 </div>
@@ -900,17 +902,48 @@ const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, t
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  
+  // 1. Initial State from LocalStorage
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('core_users');
+    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  });
+  
+  // Restore user session if valid
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        // Verify if still valid against user list
+        const validUser = users.find(u => u.id === parsed.id);
+        if (validUser) setUser(validUser);
+      } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
   const [templates, setTemplates] = useState({});
   const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_BY_MODULE);
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [dbReady, setDbReady] = useState(false);
 
+  // 2. Persist Login
   useEffect(() => {
-      signInAnonymously(auth).then(() => {
-          setDbReady(true);
-      }).catch(console.error);
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
+
+  // 3. Firebase Connection
+  useEffect(() => {
+      const unsubAuth = onAuthStateChanged(auth, (authUser) => {
+          if (authUser) {
+              setDbReady(true);
+          } else {
+              signInAnonymously(auth).catch(console.error);
+          }
+      });
+      return () => unsubAuth();
   }, []);
 
   useEffect(() => {
