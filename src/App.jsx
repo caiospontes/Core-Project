@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 
 // ============================================================================
-// 1. CONFIGURAÇÃO E UTILS
+// CONFIGURAÇÃO FIREBASE
 // ============================================================================
 
 const firebaseConfig = {
@@ -39,75 +39,82 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// --- COMPONENTE SAFE PREVIEW (A4 DINÂMICO) ---
+// ============================================================================
+// COMPONENTE: SAFE PREVIEW (A4 DINÂMICO - AUTO HEIGHT)
+// ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const shadowRootRef = useRef(null);
 
   useEffect(() => {
-    const updateScale = () => {
+    const updateSize = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const A4_WIDTH = 794; // 210mm @ 96 DPI
+        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         
-        // Calcula escala baseada na largura disponível (Fit Width)
-        let scale = (parentWidth - 40) / A4_WIDTH;
-        if (scale > 1.2) scale = 1.2; // Limite máximo de zoom
+        // 1. Calcula escala para caber na largura (Fit Width)
+        let scale = (parentWidth - 40) / A4_WIDTH_PX;
+        if (scale > 1.2) scale = 1.2; // Max zoom
         
         containerRef.current.style.transform = `scale(${scale})`;
+        containerRef.current.style.transformOrigin = 'top center';
         
-        // Pega a altura real do conteúdo dentro do Shadow DOM
-        // Se for menor que A4 (1123px), usa A4. Se for maior, usa a altura do conteúdo.
+        // 2. Calcula altura real do conteúdo
+        // Precisamos acessar o body dentro do shadowRoot
         const contentHeight = shadowRootRef.current.body.scrollHeight;
-        const displayHeight = Math.max(contentHeight, 1123);
+        // Altura mínima de uma página A4 (1123px)
+        const finalHeight = Math.max(contentHeight, 1123);
         
-        // Ajusta o container do Shadow DOM para a altura do conteúdo
-        containerRef.current.style.height = `${displayHeight}px`;
-
-        // Ajusta a altura do wrapper externo para compensar o scale e a nova altura
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
+        // Aplica a altura ao container da folha
+        containerRef.current.style.height = `${finalHeight}px`;
         
-        // Margens negativas para centralizar pós-transform se necessário (transform-origin top center resolve a maioria)
+        // Ajusta o wrapper externo para ter scroll correto com o scale aplicado
+        wrapperRef.current.style.height = `${(finalHeight * scale) + 50}px`;
       }
     };
 
-    const observer = new ResizeObserver(updateScale);
-    if (wrapperRef.current) observer.observe(wrapperRef.current);
+    const resizeObserver = new ResizeObserver(updateSize);
+    if (wrapperRef.current) resizeObserver.observe(wrapperRef.current);
     
-    // Pequeno delay e repetições para garantir que imagens/fontes carregaram
-    setTimeout(updateScale, 100);
-    setTimeout(updateScale, 500);
-    setTimeout(updateScale, 1000);
+    // Updates iniciais
+    setTimeout(updateSize, 100);
+    setTimeout(updateSize, 500); // Retry para garantir carregamento de imagens
 
-    return () => observer.disconnect();
+    return () => resizeObserver.disconnect();
   }, [html]);
 
   useEffect(() => {
     if (!containerRef.current) return;
     
-    // Cria Shadow DOM apenas uma vez e guarda ref
     if (!shadowRootRef.current) {
         shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
     }
     
-    const shadowRoot = shadowRootRef.current;
-    
-    shadowRoot.innerHTML = `
+    // CSS que permite crescimento vertical (height: auto)
+    shadowRootRef.current.innerHTML = `
       <style>
         :host { 
             display: block; 
-            width: 794px;  /* 210mm fixo para largura A4 */
-            min-height: 1123px; /* 297mm altura mínima A4 */
+            width: 794px; /* 210mm */
+            min-height: 1123px; /* 297mm */
             height: auto; /* Permite crescer */
             background: white;
             box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            overflow: visible; /* Permite ver tudo */
+            overflow: visible;
+            margin: 0 auto;
         }
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; width: 100%; height: 100%; box-sizing: border-box; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif; 
+            width: 100%; 
+            min-height: 100%;
+            box-sizing: border-box;
+        }
         * { box-sizing: border-box; }
+        img { max-width: 100%; height: auto; }
         table { border-collapse: collapse; width: 100%; }
-        img { max-width: 100%; height: auto; display: block; }
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -115,17 +122,14 @@ const SafePreview = ({ html }) => {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full h-full flex justify-center items-start overflow-hidden p-4 bg-slate-200/50">
-      <div 
-        ref={containerRef} 
-        style={{ transformOrigin: 'top center', minWidth: '794px' }}
-      ></div>
+    <div ref={wrapperRef} className="w-full flex justify-center py-4 relative">
+      <div ref={containerRef}></div>
     </div>
   );
 };
 
 // ============================================================================
-// 2. DADOS PADRÃO
+// DADOS PADRÃO
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -136,9 +140,8 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.1', date: '2024-02-05', title: 'Live Preview Aprimorado', content: 'Ajuste de visualização para exibir todo o conteúdo do template, sem cortes.' },
-  { id: '2', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Correção de Live Preview, Gerenciamento de Usuários e Changelog.' },
-  { id: '3', version: '2.9', date: '2024-02-01', title: 'Gerenciador de Módulos', content: 'Adicionada a capacidade de criar, editar e excluir geradores dinamicamente.' },
+  { id: '1', version: '3.3', date: '2024-02-05', title: 'Correção Crítica', content: 'Restauração do módulo Gerador Dinâmico e ajuste de altura automática do A4.' },
+  { id: '2', version: '3.2', date: '2024-02-03', title: 'Gerenciador Avançado', content: 'Arrastar e soltar tags, redimensionamento automático A4 e gestão de geradores.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -221,24 +224,11 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         return;
     }
 
-    // Simulação de delay para feedback visual
     setTimeout(() => {
       const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-      
-      if (!foundUser) {
-        setError('E-mail não encontrado na lista de convites.');
-        setLoading(false);
-        return;
-      }
-
-      if (!foundUser.active) {
-        setError('Conta desativada.');
-        setLoading(false);
-        return;
-      }
-
-      onLogin(foundUser);
-      setLoading(false);
+      if (!foundUser) { setError('E-mail não encontrado na lista de convites.'); setLoading(false); return; }
+      if (!foundUser.active) { setError('Conta desativada.'); setLoading(false); return; }
+      onLogin(foundUser); setLoading(false);
     }, 800);
   };
 
@@ -251,35 +241,18 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
         const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
-
         if (foundUser) {
-            if (!foundUser.active) {
-                setError('Sua conta foi desativada pelo administrador.');
-                await signOut(auth); 
-                signInAnonymously(auth); 
-            } else {
-                onLogin(foundUser);
-            }
+            if (!foundUser.active) { setError('Conta desativada.'); await signOut(auth); signInAnonymously(auth); }
+            else onLogin(foundUser);
         } else {
-            setError('Este e-mail Google não possui convite.');
-            await signOut(auth);
-            signInAnonymously(auth);
+            setError('Este e-mail Google não possui convite.'); await signOut(auth); signInAnonymously(auth);
         }
-    } catch (err) {
-        console.error("Erro Google Login:", err);
-        setError('Falha na autenticação com Google.');
-    } finally {
-        setLoading(false);
-    }
+    } catch (err) { setError('Falha na autenticação Google.'); } finally { setLoading(false); }
   };
 
   const handleDevLogin = () => {
-    const devUser = users.length > 0 
-        ? users.find(u => u.email === 'dev@core.teste') 
-        : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
-    
-    if (devUser) onLogin(devUser);
-    else alert('Usuário DEV não encontrado. Aguarde carregamento.');
+    const devUser = users.length > 0 ? users.find(u => u.email === 'dev@core.teste') : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
+    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado. Aguarde carregamento.');
   };
 
   return (
@@ -316,37 +289,34 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 };
 
 // ============================================================================
-// 4. PAINEL ADMINISTRATIVO
+// 4. PAINEL ADMINISTRATIVO (ATUALIZADO)
 // ============================================================================
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
-  // Tag Management
-  const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
-  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
-  const [editingTag, setEditingTag] = useState(null);
-  const [newSessionName, setNewSessionName] = useState('');
-  const [tempDelimiters, setTempDelimiters] = useState(delimiters);
-
-  // Tools Management
-  const [showToolModal, setShowToolModal] = useState(false);
-  const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
-  const [isEditingTool, setIsEditingTool] = useState(false);
-  const [editingToolKey, setEditingToolKey] = useState(null);
-
-  // Template Editing
+  // States
   const [uploadStatus, setUploadStatus] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); 
   const [htmlContent, setHtmlContent] = useState('');
   const textAreaRef = useRef(null);
 
-  // User Management
   const [showUserModal, setShowUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
   const [editingUserId, setEditingUserId] = useState(null);
 
-  // Changelog Management
+  const [editingTagId, setEditingTagId] = useState(null);
+  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
+  const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
+  const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
+  const [newSessionName, setNewSessionName] = useState('');
+  const [editingTag, setEditingTag] = useState(null);
+
+  const [showToolModal, setShowToolModal] = useState(false);
+  const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
+  const [isEditingTool, setIsEditingTool] = useState(false);
+  const [editingToolKey, setEditingToolKey] = useState(null);
+
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
@@ -362,33 +332,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     });
   };
 
-  // --- Handlers (CRUDs) ---
-
-  const handleSaveUser = async (e) => {
-    e.preventDefault();
-    const userId = editingUserId || Date.now().toString();
-    const userData = { ...userForm, id: userId, active: true };
-    if (userData.role === 'admin') userData.permissions = ['all'];
-    
-    if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail já cadastrado.');
-
-    await setDoc(getDocRef('users', userId), userData, { merge: true });
-    setShowUserModal(false);
-    setUserForm({ email: '', name: '', role: 'user', permissions: [] });
-  };
-  
-  const removeUser = async (id) => { if(window.confirm('Remover usuário?')) await deleteDoc(getDocRef('users', id)); };
-  const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
-
-  const handleSaveLog = async (e) => {
-      e.preventDefault();
-      const id = editingLogId || Date.now().toString();
-      await setDoc(getDocRef('changelog', id), { ...newLog, id }, { merge: true });
-      setEditingLogId(null); setNewLog({ version: '', date: '', title: '', content: '' });
-  };
-  const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog', id));
-  const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
-
+  // --- Handlers ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -396,16 +340,15 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
-              await setDoc(getDocRef('templates', targetModule), {
-                  name: file.name, content: ev.target.result, date: new Date().toLocaleDateString(), type: 'html'
-              });
+              await setDoc(getDocRef('templates', targetModule), { name: file.name, content: ev.target.result, date: new Date().toLocaleDateString(), type: 'html' });
               setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
       } else { setUploadStatus('Erro: Apenas .html'); }
   };
+  const handleEditTemplate = (moduleKey) => { setEditingTemplate(moduleKey); setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE); };
   
-  // Tag Handlers
+  // Tags
   const handleAddSession = async () => {
     if (!newSessionName) return;
     const currentConfig = tagsConfig[tagModuleFilter] || { sessions: [] };
@@ -414,62 +357,42 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     await setDoc(getDocRef('tags', tagModuleFilter), updatedConfig);
     setNewSessionName('');
   };
-
   const handleDeleteSession = async (sessionId) => {
     if (!window.confirm('Excluir sessão?')) return;
     const currentConfig = tagsConfig[tagModuleFilter];
     const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
     await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
   };
-
-  const handleRenameSession = async (sessionId) => {
-    const newTitle = prompt("Novo nome:");
-    if(newTitle) {
-      const currentConfig = tagsConfig[tagModuleFilter];
-      const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
-      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-    }
-  };
-
   const toggleSessionActive = async (sessionId) => {
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = currentConfig.sessions.map(s => s.id === sessionId ? { ...s, active: !s.active } : s);
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
-
   const saveTag = async (e) => {
       e.preventDefault();
       if (!tagForm.sessionId) return alert('Selecione uma sessão!');
-      
       const cleanId = tagForm.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions || []));
-      
       const sessionIndex = sessions.findIndex(s => s.id === (editingTag ? editingTag.sessionId : tagForm.sessionId));
       if(sessionIndex === -1) return false;
-
       const newTag = { id: cleanId, label: tagForm.label, type: tagForm.type };
-
       if (editingTag) {
           if (editingTag.sessionId !== tagForm.sessionId) {
                const oldSessionIndex = sessions.findIndex(s => s.id === editingTag.sessionId);
                if(oldSessionIndex !== -1) sessions[oldSessionIndex].tags.splice(editingTag.tagIndex, 1);
                const newSessionIndex = sessions.findIndex(s => s.id === tagForm.sessionId);
                sessions[newSessionIndex].tags.push(newTag);
-          } else {
-               sessions[sessionIndex].tags[editingTag.tagIndex] = newTag;
-          }
+          } else { sessions[sessionIndex].tags[editingTag.tagIndex] = newTag; }
       } else {
           let exists = false;
           sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
           if(exists) return alert('Tag já existe!');
           sessions[sessionIndex].tags.push(newTag);
       }
-
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       setEditingTag(null); setEditingTagId(null); setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId });
   };
-
   const handleDeleteTag = async (sessionId, tagIndex) => {
       if(!window.confirm('Excluir tag?')) return;
       const currentConfig = tagsConfig[tagModuleFilter];
@@ -478,7 +401,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       sessions[sessionIndex].tags.splice(tagIndex, 1);
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
-
   const prepareEditTag = (tag, sessionId, index) => {
       setEditingTag({ sessionId, tagIndex: index, tagData: tag });
       setEditingTagId(tag.id);
@@ -491,12 +413,10 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       e.preventDefault();
       const data = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (data.module !== tagModuleFilter || data.sessionId === targetSessionId) return;
-
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       const sourceSession = sessions.find(s => s.id === data.sessionId);
       const targetSession = sessions.find(s => s.id === targetSessionId);
-
       if (sourceSession && targetSession) {
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
           targetSession.tags.push(movedTag);
@@ -504,66 +424,65 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       }
   };
 
+  // Tools
   const handleSaveTool = async (e) => {
       e.preventDefault();
       const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
       const newToolsConfig = { ...toolsConfig };
       if (isEditingTool && editingToolKey && editingToolKey !== cleanId) delete newToolsConfig[editingToolKey];
-      
-      newToolsConfig[cleanId] = {
-          label: toolForm.label,
-          desc: toolForm.desc,
-          icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z',
-          active: toolForm.active
-      };
+      newToolsConfig[cleanId] = { ...toolForm, icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z' };
+      delete newToolsConfig[cleanId].id;
       await setDoc(getDocRef('settings', 'tools'), newToolsConfig);
       setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true });
   };
-  
   const prepareEditTool = (key, tool) => { setEditingToolKey(key); setToolForm({ id: key, ...tool }); setIsEditingTool(true); setShowToolModal(true); };
   const handleDeleteTool = async (key) => { if(window.confirm('Excluir?')) { const n = { ...toolsConfig }; delete n[key]; await setDoc(getDocRef('settings', 'tools'), n); }};
 
-  const handleEditTemplate = (key) => { setEditingTemplate(key); setHtmlContent(templates[key]?.content || DEFAULT_HTML_TEMPLATE); };
+  // Editor
   const handleSaveEditedTemplate = async () => { await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' }); setEditingTemplate(null); alert('Salvo!'); };
   const insertAtCursor = (text) => { const ta = textAreaRef.current; if(ta) { const s=ta.selectionStart; const e=ta.selectionEnd; const v=ta.value; setHtmlContent(v.substring(0,s)+text+v.substring(e)); setTimeout(()=>{ta.selectionStart=ta.selectionEnd=s+text.length;ta.focus();},0);}};
-  const handleSaveTagInEditor = async (e) => {
-    e.preventDefault();
-    const currentConfig = tagsConfig[editingTemplate] || { sessions: [{id:'geral', title:'Geral', active:true, tags:[]}] };
-    // Logic to save tag from editor would replicate saveTag logic. Skipped for brevity.
-    alert("Use a aba 'Configurar Tags' para gerenciamento completo.");
-    setEditorEditingTagId(null);
-  };
   const handleEditTagClick = (tag) => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); };
+  const handleSaveTagInEditor = async (e) => { e.preventDefault(); alert("Use a aba 'Configurar Tags' para gerenciamento completo."); setEditorEditingTagId(null); };
   const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert('Salvo.'); };
+
+  // Users & Logs
+  const handleSaveUser = async (e) => { e.preventDefault(); const uid=editingUserId||Date.now().toString(); const d={...userForm, id:uid, active:true}; if(d.role==='admin') d.permissions=['all']; await setDoc(getDocRef('users',uid),d,{merge:true}); setShowUserModal(false); };
+  const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
+  const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
+  const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
+  const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
+  const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
+  const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100"><h2 className="text-xl font-black text-[#002233]">Administração</h2></div>
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-2">
             {['templates', 'tags', 'tools', 'users', 'changelog'].map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-3 py-2 rounded text-sm capitalize ${activeTab === tab ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500'}`}>{tab}</button>
+                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
             ))}
         </nav>
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
-                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm">
+                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
                                 {Object.entries(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
+                        {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{Object.entries(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? templates[key].name : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="text-blue-600 text-xs font-bold">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{Object.entries(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
-            {/* TAGS */}
+            
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start h-full">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
@@ -610,20 +529,20 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                      </div>
                 </div>
             )}
-            {/* TOOLS */}
+
             {activeTab === 'tools' && (
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {getSortedTools().map(([key, tool]) => (
-                            <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-48 relative">
+                            <div key={key} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="p-2 bg-slate-50 rounded-lg"><svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="p-2 bg-slate-50 rounded-lg"><svg className="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
                                         <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${tool.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{tool.active ? 'Ativo' : 'Inativo'}</span>
                                     </div>
-                                    <h4 className="font-bold text-slate-800">{tool.label}</h4>
-                                    <p className="text-xs text-slate-500 mt-1 line-clamp-3">{tool.desc}</p>
+                                    <h4 className="font-bold text-slate-800 text-lg">{tool.label}</h4>
+                                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{tool.desc}</p>
                                 </div>
                                 <div className="flex gap-3 mt-4 pt-3 border-t border-slate-100">
                                     <button onClick={() => prepareEditTool(key, tool)} className="text-blue-600 text-xs font-bold hover:underline">Editar</button>
@@ -635,18 +554,21 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     </div>
                 </div>
             )}
+
             {activeTab === 'users' && (
                 <div className="space-y-6">
                     <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
-                    <div className="bg-white rounded shadow overflow-hidden">
-                        <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Nome</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3 text-right">Ações</th></tr></thead><tbody>{users.map(u => <tr key={u.id} className="border-b"><td className="p-3">{u.name}</td><td className="p-3">{u.email}</td><td className="p-3 capitalize">{u.role}</td><td className="p-3 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-500 mr-2">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500">Excluir</button></td></tr>)}</tbody></table>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Nome</th><th className="p-4">Email</th><th className="p-4">Role</th><th className="p-4 text-right">Ações</th></tr></thead><tbody>{users.map(u => <tr key={u.id} className="border-b hover:bg-slate-50"><td className="p-4 font-bold text-slate-700">{u.name}</td><td className="p-4 text-slate-500">{u.email}</td><td className="p-4"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold uppercase">{u.role}</span></td><td className="p-4 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-600 font-bold text-xs mr-4 hover:underline">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500 font-bold text-xs hover:underline">Excluir</button></td></tr>)}</tbody></table>
                     </div>
                 </div>
             )}
+
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
-                     <div className="bg-white p-6 rounded shadow border"><div className="grid grid-cols-3 gap-2 mb-2"><input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/><input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/><input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/></div><textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-16"/><button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded text-sm font-bold mt-2">{editingLogId ? 'Atualizar' : 'Adicionar'}</button></div>
-                     <div className="space-y-2">{changelog.map(log => (<div key={log.id} className="bg-white p-3 rounded border flex justify-between"><div><span className="font-bold text-xs bg-green-100 px-2 py-0.5 rounded mr-2">{log.version}</span><span className="font-bold text-sm">{log.title}</span><p className="text-xs text-slate-500">{log.content}</p></div><div><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs mr-2">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs">Excluir</button></div></div>))}</div>
+                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                         <div className="grid grid-cols-3 gap-4 mb-4"><input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/><input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/><input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/></div><textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-20 mb-4"/><button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded text-sm font-bold">{editingLogId ? 'Atualizar' : 'Adicionar'}</button></div>
+                     <div className="space-y-3">{changelog.map(log => (<div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start"><div><div className="flex items-center gap-3 mb-1"><span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400 font-bold uppercase">{log.date}</span></div><h4 className="font-bold text-slate-700">{log.title}</h4><p className="text-sm text-slate-500 mt-1">{log.content}</p></div><div className="flex gap-3"><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs font-bold hover:underline">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs font-bold hover:underline">Excluir</button></div></div>))}</div>
                  </div>
             )}
         </div>
@@ -663,9 +585,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
                             <div key={s.id} className="mb-4">
                                 <p className="text-[10px] text-[#00DBFF] font-bold uppercase mb-1">{s.title}</p>
-                                {s.tags.map(tag => (
-                                    <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">{delimiters.prefix}{tag.id}{delimiters.suffix}</button>
-                                ))}
+                                {s.tags.map(tag => <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">{delimiters.prefix}{tag.id}{delimiters.suffix}</button>)}
                             </div>
                         ))}
                     </div>
@@ -719,6 +639,88 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   );
 };
 
+// ============================================================================
+// 7. GERADOR DINÂMICO (RESTAURADO)
+// ============================================================================
+const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
+  const [formData, setFormData] = useState({});
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => {
+    const config = tagsConfig[moduleId] || { sessions: [] };
+    const activeSessions = config.sessions.filter(s => s.active);
+    setSessions(activeSessions);
+    const initialData = { ...formData };
+    activeSessions.forEach(session => {
+        session.tags.forEach(tag => {
+            if (initialData[tag.id] === undefined) initialData[tag.id] = '';
+            if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
+        });
+    });
+    setFormData(initialData);
+  }, [tagsConfig, moduleId]);
+
+  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
+
+  const renderDocument = () => {
+      let html = template?.content || DEFAULT_HTML_TEMPLATE;
+      sessions.forEach(session => {
+          session.tags.forEach(tag => {
+              let val = formData[tag.id] || '';
+              if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
+              const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
+              html = html.split(tagPattern).join(val);
+          });
+      });
+      return html;
+  };
+
+  const handlePrint = () => {
+      const printContent = renderDocument();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`<html><head><title>Imprimir</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+  };
+
+  return (
+    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
+      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
+          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-6">
+            {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
+            {sessions.map(session => (
+                <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
+                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
+                        {session.title}
+                    </h3>
+                    <div className="space-y-3">
+                        {session.tags.map(tag => (
+                            <div key={tag.id}>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
+                                <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag.id, e.target.value)} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
+        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
+            <SafePreview html={renderDocument()} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ... (HomePage e App Root mantidos, mas HomePage recebe toolsConfig atualizado)
 // ============================================================================
 // 5. HOME PAGE
 // ============================================================================
@@ -846,6 +848,8 @@ export default function App() {
     if (session) {
       try {
         const parsed = JSON.parse(session);
+        // Verify if still valid against user list
+        // Note: Se o usuário foi deletado do banco, ele será deslogado quando a lista de usuários atualizar via Firestore
         setUser(parsed);
       } catch (e) { localStorage.removeItem('core_session_user'); }
     }
@@ -888,9 +892,11 @@ export default function App() {
       }, () => {});
       const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
           const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data());
+          // Auto-migration for old data structure
           if (Object.keys(loaded).length === 0) {
               Object.entries(DEFAULT_TAGS_WITH_SESSIONS).forEach(([k, v]) => setDoc(getDocRef('tags', k), v));
           } else {
+              // Verifica se é estrutura antiga (array) e converte se necessário
               const migrated = {};
               Object.keys(loaded).forEach(k => {
                  if (loaded[k].list) { 
