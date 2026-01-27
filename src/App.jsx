@@ -31,6 +31,7 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
+// Inicialização segura
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -49,7 +50,7 @@ const sortTools = (config) => {
 };
 
 // ============================================================================
-// 2. COMPONENTE SAFE PREVIEW (A4 RESTRITO)
+// 2. COMPONENTE SAFE PREVIEW (A4 RESTRITO - FIT TO SCREEN)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -60,21 +61,35 @@ const SafePreview = ({ html }) => {
     const updateScale = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
+        
+        // Dimensões A4 em pixels (96 DPI)
+        const A4_WIDTH_PX = 794; 
+        const A4_HEIGHT_PX = 1123; 
+        
+        // Margem de segurança
         const PADDING = 40;
         
-        // Calcula escala para caber na largura disponível
+        // Calcula a largura disponível
         const availableWidth = parentWidth - PADDING;
-        const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
+        
+        // Calcula a escala para caber na largura (Fit Width)
+        // Isso garante que a folha nunca seja cortada lateralmente
+        let scale = availableWidth / A4_WIDTH_PX;
+        
+        // Limite máximo de zoom para não distorcer em telas muito grandes
+        if (scale > 1.2) scale = 1.2;
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // Altura do conteúdo
-        const contentHeight = shadowRootRef.current?.body?.scrollHeight || 1123;
-        const displayHeight = Math.max(contentHeight, 1123); 
+        // Calcula a altura do conteúdo real para ajuste dinâmico
+        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : A4_HEIGHT_PX;
+        const displayHeight = Math.max(contentHeight, A4_HEIGHT_PX);
         
+        // Aplica a altura real ao container da folha
         containerRef.current.style.height = `${displayHeight}px`;
+        
+        // Ajusta o wrapper externo para compensar o scale e a altura
         wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
       }
     };
@@ -82,8 +97,10 @@ const SafePreview = ({ html }) => {
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
+    // Múltiplos timeouts para garantir renderização de fontes/imagens
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
+    setTimeout(updateScale, 1000);
 
     return () => observer.disconnect();
   }, [html]);
@@ -97,18 +114,17 @@ const SafePreview = ({ html }) => {
     
     const shadowRoot = shadowRootRef.current;
     
-    // CSS INJETADO: Força quebra de linha e limites de imagem
     shadowRoot.innerHTML = `
       <style>
         :host { 
             display: block; 
-            width: 794px; 
-            min-height: 1123px; 
+            width: 794px;  /* 210mm fixo */
+            min-height: 1123px; /* 297mm fixo */
             height: auto;
             background: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             margin: 0 auto;
-            overflow: hidden; /* Corta o que sair da folha */
+            overflow: visible; /* Permite crescer sem cortar */
             padding: 0;
         }
         body { 
@@ -116,22 +132,22 @@ const SafePreview = ({ html }) => {
             padding: 0; 
             font-family: Arial, sans-serif; 
             width: 100%; 
-            height: 100%;
+            min-height: 100%;
             box-sizing: border-box;
             color: black;
-            overflow-wrap: break-word; /* Quebra palavras longas */
+            overflow-wrap: break-word;
             word-wrap: break-word;
         }
         * { box-sizing: border-box; max-width: 100%; }
         
-        /* Força imagens a não estourarem a largura */
+        /* Força imagens a respeitarem limites */
         img { 
             max-width: 100% !important; 
             height: auto !important; 
             display: block; 
         }
         
-        /* Força tabelas a respeitarem a largura */
+        /* Tabelas com layout fixo para não estourar */
         table { 
             width: 100% !important; 
             border-collapse: collapse; 
@@ -170,8 +186,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.6', date: '2024-02-12', title: 'Correção Geral', content: 'Resolução de erros de referência e ajuste fino no preview de impressão.' },
+  { id: '1', version: '3.6', date: '2024-02-12', title: 'Correção Geral', content: 'Resolução de erros de referência no Admin e ajuste fino no preview de impressão.' },
   { id: '2', version: '3.4', date: '2024-02-06', title: 'Ajuste Live Preview', content: 'Correção de corte de conteúdo no preview e ajuste automático de altura.' },
+  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -235,7 +252,7 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 </div>`;
 
 // ============================================================================
-// 4. COMPONENTES (ORDENADOS PARA EVITAR REFERENCE ERROR)
+// 4. COMPONENTES DE PÁGINA
 // ============================================================================
 
 // --- LOGIN ---
@@ -260,7 +277,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
       const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
-        setError('E-mail não encontrado.');
+        setError('E-mail não encontrado na lista de convites.');
         setLoading(false);
         return;
       }
@@ -309,7 +326,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
              <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-12" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">CORE</h1>
-          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização</p>
+          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização e Rendimento da Equipe</p>
           {!dbReady && <span className="text-xs text-yellow-500 animate-pulse block mt-4">Conectando ao banco de dados...</span>}
           {dbReady && <span className="text-xs text-green-500 block mt-4">Sistema Online</span>}
         </div>
@@ -331,6 +348,44 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     </div>
   );
 };
+
+// --- HOME PAGE ---
+const HomePage = ({ onNavigate, user, changelog, toolsConfig }) => (
+  <div className="h-full w-full flex flex-col bg-[#f0f4f8] overflow-y-auto">
+    <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black mb-2 tracking-tight">CORE <span className="text-[#00DBFF]">| Centro de Otimização</span></h1>
+        <p className="text-slate-400 text-lg max-w-2xl">Gestão centralizada de ativos e processos.</p>
+      </div>
+    </div>
+    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+        <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Ferramentas</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sortTools(toolsConfig).map(([key, tool]) => (
+                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
+                        <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-lg flex items-center justify-center mb-4"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
+                        <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
+                        <p className="text-sm text-slate-500 mt-2 h-10">{tool.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+        <div className="w-full lg:w-80">
+             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Changelog</h2>
+             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto custom-scroll">
+                {changelog.map(log => (
+                    <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center mb-1"><span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400">{log.date}</span></div>
+                        <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1">{log.content}</p>
+                    </div>
+                ))}
+             </div>
+        </div>
+    </div>
+  </div>
+);
 
 // --- ADMIN PANEL ---
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
@@ -369,11 +424,21 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
-  // Handlers
+  const getSortedTools = () => {
+    return Object.entries(toolsConfig).sort(([, a], [, b]) => {
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  };
+
+  // --- Handlers ---
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
-      if(file && file.name.endsWith('.html')) {
+      if(!file) return;
+
+      if(file.name.endsWith('.html')) {
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
@@ -412,7 +477,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   };
 
   const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Excluir sessão?')) return;
+    if (!window.confirm('Excluir sessão e todas as suas tags?')) return;
     const currentConfig = tagsConfig[tagModuleFilter];
     const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
     await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
@@ -524,7 +589,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
   const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
   const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
-  
   const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
   const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
   const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
@@ -565,13 +629,13 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
                             <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
-                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
                         {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{sortTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{getSortedTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
             
@@ -581,7 +645,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
-                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
                             <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
@@ -626,7 +690,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {sortTools(toolsConfig).map(([key, tool]) => (
+                        {getSortedTools(toolsConfig).map(([key, tool]) => (
                             <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
                                     <div className="flex justify-between items-start mb-3">
@@ -655,6 +719,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     </div>
                 </div>
             )}
+
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
                      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -849,16 +914,47 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  
+  // 1. Initial State from LocalStorage (Sync)
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('core_users');
+    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  });
+  
+  // Restore user session IMMEDIATELY on mount
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        setUser(parsed);
+      } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
   const [templates, setTemplates] = useState({});
-  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS);
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); 
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
   const [dbReady, setDbReady] = useState(false);
 
+  // 2. Persist Login
   useEffect(() => {
-      signInAnonymously(auth).then(() => { setDbReady(true); }).catch(console.error);
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
+
+  // 3. Firebase Connection
+  useEffect(() => {
+      const unsubAuth = onAuthStateChanged(auth, (authUser) => {
+          if (authUser) {
+              setDbReady(true);
+          } else {
+              signInAnonymously(auth).catch(console.error);
+          }
+      });
+      return () => unsubAuth();
   }, []);
 
   useEffect(() => {
@@ -903,23 +999,6 @@ export default function App() {
       }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
-
-  // RESTAURA SESSÃO DO LOCALSTORAGE
-  useEffect(() => {
-    const session = localStorage.getItem('core_session_user');
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        setUser(parsed);
-      } catch (e) { localStorage.removeItem('core_session_user'); }
-    }
-  }, []);
-
-  // PERSISTE SESSÃO NO LOCALSTORAGE
-  useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
-  }, [user]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
