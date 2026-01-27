@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 
 // ============================================================================
-// 1. CONFIGURAÇÃO FIREBASE
+// 1. CONFIGURAÇÃO FIREBASE & UTILS
 // ============================================================================
 
 const firebaseConfig = {
@@ -31,7 +31,6 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Inicialização segura
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,8 +39,17 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
+const sortTools = (config) => {
+    return Object.entries(config).sort(([, a], [, b]) => {
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        return a.label.localeCompare(b.label);
+    });
+};
+
 // ============================================================================
-// 2. COMPONENTE SAFE PREVIEW (A4 ESTÁTICO - VISÃO DE IMPRESSÃO)
+// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -52,37 +60,31 @@ const SafePreview = ({ html }) => {
     const updateScale = () => {
       if (wrapperRef.current && containerRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const parentHeight = wrapperRef.current.clientHeight;
-        
-        // Dimensões A4 em pixels (96 DPI) - 210mm x 297mm
-        const A4_WIDTH_PX = 794; 
-        const A4_HEIGHT_PX = 1123;
-        
+        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         const PADDING = 40;
         
-        // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
-        const availableHeight = parentHeight - PADDING;
-        
-        // Fit to width or height logic - vamos priorizar width, mas garantir que cabe na tela se possível
-        // Para simular "visão de folha inteira", usamos o menor fator de escala
-        const scaleW = availableWidth / A4_WIDTH_PX;
-        
-        // Limite máximo de zoom para não ficar gigante em telas enormes
-        let scale = Math.min(scaleW, 1.0); 
+        const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); // Fit Width com limite de zoom
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // O container tem tamanho fixo A4. O wrapper ajusta a altura para o espaço ocupado pelo elemento escalado.
-        wrapperRef.current.style.height = `${(A4_HEIGHT_PX * scale) + 50}px`; 
+        // Ajusta altura do container para o conteúdo real
+        const contentHeight = shadowRootRef.current?.body?.scrollHeight || 1123;
+        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
+        
+        containerRef.current.style.height = `${displayHeight}px`;
+        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
       }
     };
 
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
+    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
+    setTimeout(updateScale, 500);
+    setTimeout(updateScale, 1000);
 
     return () => observer.disconnect();
   }, [html]);
@@ -96,25 +98,24 @@ const SafePreview = ({ html }) => {
     
     const shadowRoot = shadowRootRef.current;
     
-    // CSS Isolado para o Preview - Fixo A4
     shadowRoot.innerHTML = `
       <style>
         :host { 
             display: block; 
-            width: 794px;  /* 210mm fixo */
-            height: 1123px; /* 297mm fixo */
+            width: 794px; /* 210mm fixo */
+            min-height: 1123px; /* 297mm fixo */
+            height: auto;
             background: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             margin: 0 auto;
-            overflow: hidden; /* Corta o que passar da folha, igual impressão */
-            position: relative;
+            overflow: visible; /* Permite crescer */
         }
         body { 
             margin: 0; 
             padding: 0; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif; 
             width: 100%; 
-            height: 100%;
+            min-height: 100%;
             box-sizing: border-box;
             color: black;
             overflow-wrap: break-word;
@@ -122,11 +123,6 @@ const SafePreview = ({ html }) => {
         * { box-sizing: border-box; }
         img { max-width: 100%; height: auto; display: block; }
         table { border-collapse: collapse; width: 100%; }
-        p { margin: 0 0 10px 0; }
-        
-        /* Reset básico para garantir consistência com PDF */
-        h1, h2, h3, h4, h5, h6 { margin-top: 0; }
-        
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -137,20 +133,14 @@ const SafePreview = ({ html }) => {
     <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
       <div 
         ref={containerRef} 
-        style={{ 
-           width: '794px', 
-           height: '1123px',
-           minWidth: '794px',
-           minHeight: '1123px',
-           backgroundColor: 'white'
-        }}
+        style={{ width: '794px', minHeight: '1123px', transition: 'transform 0.1s ease-out' }}
       ></div>
     </div>
   );
 };
 
 // ============================================================================
-// 3. DADOS PADRÃO E UTILS
+// 3. DADOS PADRÃO
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -161,7 +151,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.7', date: '2024-02-09', title: 'Correções Finais', content: 'Correção de erros de referência no Admin, melhorias no Live Preview A4 e persistência de sessão.' },
+  { id: '1', version: '3.9', date: '2024-02-11', title: 'Correção de Inicialização', content: 'Resolução de problemas de carregamento de componentes e ajuste de preview.' },
   { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
   { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
@@ -182,7 +172,7 @@ const DEFAULT_TOOLS_CONFIG = {
   monitores: { 
     label: 'Monitores', 
     desc: 'Controle de inventário de periféricos e monitores.',
-    icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
+    icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
     active: false 
   },
 };
@@ -227,8 +217,9 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 </div>`;
 
 // ============================================================================
-// 4. TELA DE LOGIN
+// 4. COMPONENTES PRINCIPAIS
 // ============================================================================
+
 const LoginPage = ({ onLogin, users, dbReady }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -285,10 +276,8 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
-    const devUser = users.length > 0 
-        ? users.find(u => u.email === 'dev@core.teste') 
-        : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
-    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado. Aguarde carregamento.');
+    const devUser = users.length > 0 ? users.find(u => u.email === 'dev@core.teste') : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
+    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado.');
   };
 
   return (
@@ -324,9 +313,43 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   );
 };
 
-// ============================================================================
-// 5. PAINEL ADMINISTRATIVO
-// ============================================================================
+const HomePage = ({ onNavigate, user, changelog, toolsConfig }) => (
+  <div className="h-full w-full flex flex-col bg-[#f0f4f8] overflow-y-auto">
+    <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black mb-2 tracking-tight">CORE <span className="text-[#00DBFF]">| Centro de Otimização</span></h1>
+        <p className="text-slate-400 text-lg max-w-2xl">Gestão centralizada de ativos e processos.</p>
+      </div>
+    </div>
+    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+        <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Ferramentas</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sortTools(toolsConfig).map(([key, tool]) => (
+                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
+                        <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-lg flex items-center justify-center mb-4"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
+                        <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
+                        <p className="text-sm text-slate-500 mt-2 h-10">{tool.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+        <div className="w-full lg:w-80">
+             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Changelog</h2>
+             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto custom-scroll">
+                {changelog.map(log => (
+                    <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center mb-1"><span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400">{log.date}</span></div>
+                        <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1">{log.content}</p>
+                    </div>
+                ))}
+             </div>
+        </div>
+    </div>
+  </div>
+);
+
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
@@ -363,41 +386,22 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
-  const getSortedTools = () => {
-    return Object.entries(toolsConfig).sort(([, a], [, b]) => {
-      if (a.active && !b.active) return -1;
-      if (!a.active && b.active) return 1;
-      return a.label.localeCompare(b.label);
-    });
-  };
-
-  // --- Handlers ---
+  // Handlers
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
-      if(!file) return;
-
-      if(file.name.endsWith('.html')) {
+      if(file && file.name.endsWith('.html')) {
           setUploadStatus('Carregando HTML...');
           const reader = new FileReader();
           reader.onload = async (ev) => {
-              await setDoc(getDocRef('templates', targetModule), {
-                  name: file.name,
-                  content: ev.target.result,
-                  date: new Date().toLocaleDateString(),
-                  type: 'html'
-              });
+              await setDoc(getDocRef('templates', targetModule), { name: file.name, content: ev.target.result, date: new Date().toLocaleDateString(), type: 'html' });
               setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
       } else { setUploadStatus('Erro: Apenas .html'); }
   };
-
-  const handleEditTemplate = (moduleKey) => {
-      setEditingTemplate(moduleKey);
-      setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE);
-  };
-
+  const handleEditTemplate = (moduleKey) => { setEditingTemplate(moduleKey); setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE); };
+  
   const insertAtCursor = (textToInsert) => {
     const textarea = textAreaRef.current;
     if (textarea) {
@@ -413,22 +417,50 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     }
   };
 
-  const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
+  const handleAddSession = async () => {
+    if (!newSessionName) return;
+    const currentConfig = tagsConfig[tagModuleFilter] || { sessions: [] };
+    const newSession = { id: newSessionName.toLowerCase().replace(/\s+/g, '_'), title: newSessionName, active: true, tags: [] };
+    const updatedConfig = { ...currentConfig, sessions: [...(currentConfig.sessions || []), newSession] };
+    await setDoc(getDocRef('tags', tagModuleFilter), updatedConfig);
+    setNewSessionName('');
+  };
+  const handleDeleteSession = async (sessionId) => {
+    if (!window.confirm('Excluir sessão?')) return;
+    const currentConfig = tagsConfig[tagModuleFilter];
+    const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
+    await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
+  };
+  const handleRenameSession = async (sessionId) => {
+      const newTitle = prompt("Novo nome:");
+      if(newTitle) {
+        const currentConfig = tagsConfig[tagModuleFilter];
+        const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
+        await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
+      }
+  };
+  const toggleSessionActive = async (sessionId) => {
+      const currentConfig = tagsConfig[tagModuleFilter];
+      const sessions = currentConfig.sessions.map(s => s.id === sessionId ? { ...s, active: !s.active } : s);
+      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
+  };
+
+  const saveTag = async (id, label, type, module, isEdit = false, originalId = null, sessionId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-      const currentTags = tagsConfig[module] || { sessions: [] };
-      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions || []));
+      const currentConfig = tagsConfig[module] || { sessions: [] };
+      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       
-      const targetSessionId = tagForm.sessionId || sessions[0]?.id;
+      const targetSessionId = sessionId || (editingTag ? editingTag.sessionId : tagForm.sessionId) || sessions[0]?.id;
       const sessionIndex = sessions.findIndex(s => s.id === targetSessionId);
       
       if(sessionIndex === -1) return false;
 
-      const newTag = { id: cleanId, label: tagForm.label, type: tagForm.type };
+      const newTag = { id: cleanId, label, type };
 
-      if (isEdit && editingTag) {
-          const oldSessionIndex = sessions.findIndex(s => s.id === editingTag.sessionId);
-          if (oldSessionIndex !== -1) {
-              sessions[oldSessionIndex].tags.splice(editingTag.tagIndex, 1);
+      if (isEdit && originalId) {
+          for (let s of sessions) {
+             const tIdx = s.tags.findIndex(t => t.id === originalId);
+             if(tIdx !== -1) { s.tags.splice(tIdx, 1); break; }
           }
       } else {
           let exists = false;
@@ -441,194 +473,89 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       return true;
   };
 
+  const handleSaveTagPanel = async (e) => {
+      e.preventDefault();
+      const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTag, editingTag?.tagData.id, tagForm.sessionId);
+      if(success) {
+        setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId });
+        setEditingTag(null);
+        setEditingTagId(null);
+      } else { alert('Erro!'); }
+  };
   const handleDeleteTag = async (sessionId, tagIndex, module = tagModuleFilter) => {
-      if(!window.confirm('Excluir tag?')) return;
+      if(!window.confirm('Excluir?')) return;
       const currentConfig = tagsConfig[module];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       const sessionIndex = sessions.findIndex(s => s.id === sessionId);
       sessions[sessionIndex].tags.splice(tagIndex, 1);
       await setDoc(getDocRef('tags', module), { ...currentConfig, sessions });
   };
-
-  const handleSaveTagPanel = async (e) => {
-      e.preventDefault();
-      const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTagId, editingTagId);
-      if(success !== false) {
-        setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId });
-        setEditingTag(null);
-        setEditingTagId(null);
-        alert('Tag salva!');
-      } else {
-        alert('Tag já existe ou sessão inválida!');
-      }
-  };
-
-  const handleSaveTagInEditor = async (e) => {
-    e.preventDefault();
-    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
-    if(success) {
-        setEditorEditingTagId(null);
-        setEditorTagForm({ id: '', label: '', type: 'text' });
-    } else {
-        alert("Erro ao editar tag.");
-    }
-  };
-
-  const handleEditTagClick = (tag, sessionId, index) => {
-      setEditingTag({ sessionId, tagIndex: index, tagData: tag });
+  const handleEditTagClick = (tag, sessionId, idx) => {
+      setEditingTag({ sessionId, tagIndex: idx, tagData: tag });
       setEditingTagId(tag.id);
       setTagForm({ ...tag, sessionId });
   };
 
-  const handleSaveDelimiters = async () => {
-    await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters);
-    alert(`Delimitadores atualizados.`);
-  };
-
-  const handleSaveUser = async (e) => {
+  const handleSaveTagInEditor = async (e) => {
     e.preventDefault();
-    const userId = editingUserId || Date.now().toString();
-    const userData = { ...userForm, id: userId, active: true };
-    if (userData.role === 'admin') userData.permissions = ['all'];
-    if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail já cadastrado.');
-    await setDoc(getDocRef('users', userId), userData);
-    setShowUserModal(false);
-    setUserForm({ email: '', name: '', role: 'user', permissions: [] });
+    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId, null); // Null session means use existing or first
+    if(success) { setEditorEditingTagId(null); setEditorTagForm({ id: '', label: '', type: 'text' }); } else { alert("Erro."); }
   };
-
-  const handleEditUserClick = (user) => {
-      setUserForm(user);
-      setEditingUserId(user.id);
-      setShowUserModal(true);
+  const prepareEditTagInEditor = (tag) => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); };
+  const handleDeleteTagInEditor = (tagId) => { 
+      const currentSessions = tagsConfig[editingTemplate]?.sessions || []; 
+      let foundSessionId = null; let foundIndex = -1; 
+      for(let s of currentSessions) { const idx = s.tags.findIndex(t => t.id === tagId); if(idx !== -1) { foundSessionId = s.id; foundIndex = idx; break; } } 
+      if(foundSessionId) handleDeleteTag(foundSessionId, foundIndex, editingTemplate); 
   };
-
-  const removeUser = async (id) => { 
-      if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); 
-  };
-
-  const toggleUserPermission = (toolKey) => {
-    if (userForm.permissions.includes(toolKey)) {
-        setUserForm({ ...userForm, permissions: userForm.permissions.filter(p => p !== toolKey) });
-    } else {
-        setUserForm({ ...userForm, permissions: [...userForm.permissions, toolKey] });
-    }
-  };
-
-  const handleSaveLog = async (e) => {
-      e.preventDefault();
-      const logId = editingLogId || Date.now().toString();
-      const logData = { ...newLog, id: logId };
-      await setDoc(getDocRef('changelog', logId), logData);
-      setEditingLogId(null);
-      setNewLog({ version: '', date: '', title: '', content: '' });
-  };
-
-  const handleEditLogClick = (log) => {
-      setNewLog(log);
-      setEditingLogId(log.id);
-  };
-
-  const handleDeleteLog = async (id) => {
-      if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id));
-  };
-
   const handleCreateCustomTagInEditor = async (tagInput) => {
     if(!tagInput) return;
     const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     const tagText = `${delimiters.prefix}${cleanId}${delimiters.suffix}`;
-    const textarea = textAreaRef.current;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = textarea.value;
-      setHtmlContent(text.substring(0, start) + tagText + text.substring(end));
-    }
-    const currentModule = editingTemplate;
-    const currentTags = tagsConfig[currentModule] || [];
-    if (!currentTags.some(t => t.id === cleanId)) {
-        const updatedTags = [...currentTags, { id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' }];
-        await setDoc(getDocRef('tags', currentModule), { list: updatedTags });
+    insertAtCursor(tagText);
+    const currentConfig = tagsConfig[editingTemplate] || { sessions: [{id:'geral', title:'Geral', active:true, tags:[]}] };
+    const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
+    if(sessions.length === 0) sessions.push({id:'geral', title:'Geral', active:true, tags:[]});
+    let exists = false;
+    sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
+    if(!exists) {
+        sessions[0].tags.push({ id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' });
+        await setDoc(getDocRef('tags', editingTemplate), { ...currentConfig, sessions });
     }
   };
 
-  const handleSaveEditedTemplate = async () => {
-    await setDoc(getDocRef('templates', editingTemplate), {
-        name: 'Template Editado Manualmente',
-        content: htmlContent,
-        date: new Date().toLocaleDateString(),
-        type: 'html'
-    });
-    setEditingTemplate(null);
-    alert('Salvo!');
-  };
+  const handleSaveTool = async (e) => { e.preventDefault(); const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_'); const newToolsConfig = { ...toolsConfig }; if (isEditingTool && editingToolKey && editingToolKey !== cleanId) delete newToolsConfig[editingToolKey]; newToolsConfig[cleanId] = { ...toolForm, icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z' }; delete newToolsConfig[cleanId].id; await setDoc(getDocRef('settings', 'tools'), newToolsConfig); setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); };
+  const prepareEditTool = (key, tool) => { setEditingToolKey(key); setToolForm({ id: key, ...tool }); setIsEditingTool(true); setShowToolModal(true); };
+  const handleDeleteTool = async (key) => { if(window.confirm('Excluir?')) { const n = { ...toolsConfig }; delete n[key]; await setDoc(getDocRef('settings', 'tools'), n); }};
 
-  // Session Handlers
-  const handleAddSession = async () => {
-    if (!newSessionName) return;
-    const currentConfig = tagsConfig[tagModuleFilter] || { sessions: [] };
-    const newSession = { id: newSessionName.toLowerCase().replace(/\s+/g, '_'), title: newSessionName, active: true, tags: [] };
-    const updatedConfig = { ...currentConfig, sessions: [...(currentConfig.sessions || []), newSession] };
-    await setDoc(getDocRef('tags', tagModuleFilter), updatedConfig);
-    setNewSessionName('');
-  };
+  const handleSaveEditedTemplate = async () => { await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' }); setEditingTemplate(null); alert('Salvo!'); };
+  const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert('Salvo.'); };
 
-  const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Excluir sessão e todas as suas tags?')) return;
-    const currentConfig = tagsConfig[tagModuleFilter];
-    const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
-    await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-  };
-
-  const handleRenameSession = async (sessionId) => {
-      const newTitle = prompt("Novo nome:");
-      if(newTitle) {
-        const currentConfig = tagsConfig[tagModuleFilter];
-        const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
-        await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-      }
-  };
-
-  const toggleSessionActive = async (sessionId) => {
-      const currentConfig = tagsConfig[tagModuleFilter];
-      const sessions = currentConfig.sessions.map(s => s.id === sessionId ? { ...s, active: !s.active } : s);
-      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
-  };
-
+  const handleSaveUser = async (e) => { e.preventDefault(); const uid=editingUserId||Date.now().toString(); const d={...userForm, id:uid, active:true}; if(d.role==='admin') d.permissions=['all']; await setDoc(getDocRef('users',uid),d,{merge:true}); setShowUserModal(false); };
+  const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
+  const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
+  const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
+  
+  const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
+  const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
+  const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
+  
   const onDragStart = (e, sessionId, tagIndex) => e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
   const onDragOver = (e) => e.preventDefault();
   const onDrop = async (e, targetSessionId) => {
       e.preventDefault();
       const data = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (data.module !== tagModuleFilter || data.sessionId === targetSessionId) return;
-
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       const sourceSession = sessions.find(s => s.id === data.sessionId);
       const targetSession = sessions.find(s => s.id === targetSessionId);
-
       if (sourceSession && targetSession) {
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
           targetSession.tags.push(movedTag);
           await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       }
   };
-
-  // Tools Handlers
-  const handleSaveTool = async (e) => {
-      e.preventDefault();
-      const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      const newToolsConfig = { ...toolsConfig };
-      if (isEditingTool && editingToolKey && editingToolKey !== cleanId) delete newToolsConfig[editingToolKey];
-      newToolsConfig[cleanId] = { ...toolForm, icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z' };
-      delete newToolsConfig[cleanId].id;
-      await setDoc(getDocRef('settings', 'tools'), newToolsConfig);
-      setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true });
-  };
-  const prepareEditTool = (key, tool) => { setEditingToolKey(key); setToolForm({ id: key, ...tool }); setIsEditingTool(true); setShowToolModal(true); };
-  const handleDeleteTool = async (key) => { if(window.confirm('Excluir?')) { const n = { ...toolsConfig }; delete n[key]; await setDoc(getDocRef('settings', 'tools'), n); }};
-
-  const prepareEditTagInEditor = (tag) => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); };
-  const handleDeleteTagInEditor = (tagId) => { const currentSessions = tagsConfig[editingTemplate]?.sessions || []; let foundSessionId = null; let foundIndex = -1; for(let s of currentSessions) { const idx = s.tags.findIndex(t => t.id === tagId); if(idx !== -1) { foundSessionId = s.id; foundIndex = idx; break; } } if(foundSessionId) handleDeleteTag(foundSessionId, foundIndex, editingTemplate); };
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
@@ -643,31 +570,29 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
-            {/* TEMPLATES */}
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
                             <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
-                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
                         {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{getSortedTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{sortTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
             
-            {/* TAGS */}
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start h-full">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
-                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
                             <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
@@ -675,7 +600,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                             <div className="flex gap-2 mb-2"><input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /><input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /></div>
                             <button onClick={handleSaveDelimiters} className="w-full bg-slate-200 text-xs py-1 rounded font-bold">Salvar Símbolos</button>
                         </div>
-                        <form onSubmit={saveTag} className="space-y-3">
+                        <form onSubmit={handleSaveTagPanel} className="space-y-3">
                             <h3 className="font-bold text-sm text-[#002233]">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
                             <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border p-2 rounded text-sm" required>
                                 <option value="">Selecione a Sessão...</option>
@@ -684,7 +609,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                             <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID (ex: NOME)" required />
                             <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo" required />
                             <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm"><option value="text">Texto</option><option value="date">Data</option><option value="email">E-mail</option></select>
-                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTagId ? 'Atualizar' : 'Adicionar'}</button>{editingTagId && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
+                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
                      <div className="flex-1 space-y-4">
@@ -707,13 +632,11 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                      </div>
                 </div>
             )}
-            
-            {/* TOOLS */}
             {activeTab === 'tools' && (
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {getSortedTools(toolsConfig).map(([key, tool]) => (
+                        {sortTools(toolsConfig).map(([key, tool]) => (
                             <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
                                     <div className="flex justify-between items-start mb-3">
@@ -733,7 +656,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     </div>
                 </div>
             )}
-
             {activeTab === 'users' && (
                 <div className="space-y-6">
                     <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
@@ -742,7 +664,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     </div>
                 </div>
             )}
-
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
                      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -852,7 +773,88 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 };
 
 // ============================================================================
-// 7. APP ROOT
+// GERADOR DINÂMICO
+// ============================================================================
+const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
+  const [formData, setFormData] = useState({});
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => {
+    const config = tagsConfig[moduleId] || { sessions: [] };
+    const activeSessions = config.sessions.filter(s => s.active);
+    setSessions(activeSessions);
+    const initialData = { ...formData };
+    activeSessions.forEach(session => {
+        session.tags.forEach(tag => {
+            if (initialData[tag.id] === undefined) initialData[tag.id] = '';
+            if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
+        });
+    });
+    setFormData(initialData);
+  }, [tagsConfig, moduleId]);
+
+  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
+
+  const renderDocument = () => {
+      let html = template?.content || DEFAULT_HTML_TEMPLATE;
+      sessions.forEach(session => {
+          session.tags.forEach(tag => {
+              let val = formData[tag.id] || '';
+              if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
+              const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
+              html = html.split(tagPattern).join(val);
+          });
+      });
+      return html;
+  };
+
+  const handlePrint = () => {
+      const printContent = renderDocument();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`<html><head><title>Imprimir</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+  };
+
+  return (
+    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
+      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
+          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-6">
+            {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
+            {sessions.map(session => (
+                <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
+                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
+                        {session.title}
+                    </h3>
+                    <div className="space-y-3">
+                        {session.tags.map(tag => (
+                            <div key={tag.id}>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
+                                <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag.id, e.target.value)} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
+        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
+            <SafePreview html={renderDocument()} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// APP ROOT
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
@@ -874,10 +876,10 @@ export default function App() {
           const loaded = []; snap.forEach(doc => loaded.push(doc.data()));
           if(loaded.length === 0) DEFAULT_USERS.forEach(u => setDoc(getDocRef('users', u.id), u));
           else setUsers(loaded);
-      });
+      }, () => {});
       const unsubTemplates = onSnapshot(getCollectionRef('templates'), (snap) => {
           const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data()); setTemplates(loaded);
-      });
+      }, () => {});
       const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
           const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data());
           if (Object.keys(loaded).length === 0) {
@@ -893,7 +895,7 @@ export default function App() {
               });
               setTagsConfig(migrated);
           }
-      });
+      }, () => {});
       const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
            snap.forEach(doc => { 
                if(doc.id === 'delimiters') setDelimiters(doc.data());
@@ -907,7 +909,7 @@ export default function App() {
           const loaded = []; snap.forEach(doc => loaded.push(doc.data()));
           if(loaded.length === 0) DEFAULT_CHANGELOG.forEach(l => setDoc(getDocRef('changelog', l.id), l));
           else setChangelog(loaded.sort((a,b) => b.id - a.id));
-      });
+      }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
 
