@@ -41,19 +41,19 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
-const sortTools = (config) => {
+function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
         return a.label.localeCompare(b.label);
     });
-};
+}
 
 // ============================================================================
 // 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
 // ============================================================================
-const SafePreview = ({ html }) => {
+function SafePreview({ html }) {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const shadowRootRef = useRef(null);
@@ -73,18 +73,18 @@ const SafePreview = ({ html }) => {
         containerRef.current.style.transformOrigin = 'top center';
         
         // Altura do conteúdo
-        const contentHeight = shadowRootRef.current?.body?.scrollHeight || 1123;
+        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
         const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
         
         containerRef.current.style.height = `${displayHeight}px`;
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
+        // Ajusta wrapper com margem extra no final
+        wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
 
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
-    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -105,13 +105,14 @@ const SafePreview = ({ html }) => {
       <style>
         :host { 
             display: block; 
-            width: 794px; /* 210mm fixo */
-            min-height: 1123px; /* 297mm fixo */
+            width: 794px; 
+            min-height: 1123px; 
             height: auto;
             background: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             margin: 0 auto;
-            overflow: visible; /* Permite crescer */
+            overflow: visible; 
+            position: relative;
         }
         body { 
             margin: 0; 
@@ -122,10 +123,12 @@ const SafePreview = ({ html }) => {
             box-sizing: border-box;
             color: black;
             overflow-wrap: break-word;
+            word-wrap: break-word;
         }
         * { box-sizing: border-box; max-width: 100%; }
-        img { max-width: 100%; height: auto; display: block; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        img { max-width: 100% !important; height: auto !important; display: block; }
+        table { width: 100% !important; border-collapse: collapse; table-layout: fixed; }
+        td, th { word-wrap: break-word; overflow-wrap: break-word; }
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -140,7 +143,7 @@ const SafePreview = ({ html }) => {
       ></div>
     </div>
   );
-};
+}
 
 // ============================================================================
 // 3. DADOS PADRÃO
@@ -154,7 +157,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.9', date: '2024-02-11', title: 'Correção de Renderização', content: 'Resolução de problemas de carregamento de componentes e ajuste de preview.' },
+  { id: '1', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
   { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
   { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
@@ -224,7 +227,7 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 // ============================================================================
 
 // --- LOGIN PAGE ---
-const LoginPage = ({ onLogin, users, dbReady }) => {
+function LoginPage({ onLogin, users, dbReady }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -294,7 +297,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
              <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-12" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">CORE</h1>
-          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização e Rendimento da Equipe</p>
+          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização</p>
           {!dbReady && <span className="text-xs text-yellow-500 animate-pulse block mt-4">Conectando ao banco de dados...</span>}
           {dbReady && <span className="text-xs text-green-500 block mt-4">Sistema Online</span>}
         </div>
@@ -315,10 +318,11 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
       </div>
     </div>
   );
-};
+}
 
 // --- HOME PAGE ---
-const HomePage = ({ onNavigate, user, changelog, toolsConfig }) => (
+function HomePage({ onNavigate, user, changelog, toolsConfig }) {
+  return (
   <div className="h-full w-full flex flex-col bg-[#f0f4f8] overflow-y-auto">
     <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
       <div className="max-w-6xl mx-auto">
@@ -353,10 +357,11 @@ const HomePage = ({ onNavigate, user, changelog, toolsConfig }) => (
         </div>
     </div>
   </div>
-);
+  );
+}
 
 // --- ADMIN PANEL ---
-const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
+function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
@@ -364,7 +369,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
   const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
   const [editingTag, setEditingTag] = useState(null);
-  const [editingTagId, setEditingTagId] = useState(null); // Corrigido: Estado restaurado
+  const [editingTagId, setEditingTagId] = useState(null);
   const [newSessionName, setNewSessionName] = useState('');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters);
 
@@ -788,12 +793,12 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
         )}
     </div>
   );
-};
+}
 
 // ============================================================================
 // 6. GERADOR DINÂMICO
 // ============================================================================
-const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
+function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
   const [formData, setFormData] = useState({});
   const [sessions, setSessions] = useState([]);
 
@@ -869,23 +874,123 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
       </div>
     </div>
   );
-};
+}
 
 // ============================================================================
-// 7. APP ROOT
+// 7. DASHBOARD
+// ============================================================================
+function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig }) {
+  const [activePage, setActivePage] = useState('Home');
+  const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
+  const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
+  const hasAccess = (toolKey) => {
+      const tool = toolsConfig[toolKey];
+      if (!tool || !tool.active) return false;
+      return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
+  };
+
+  return (
+    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
+      <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
+      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
+        <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
+          <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
+          <span className="font-bold text-sm tracking-widest text-center mt-2">CORE | Centro de Otimização</span>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
+          <div className="px-3 space-y-1">
+            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
+            </button>
+            <div>
+              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">
+                <div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div>
+                <svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {expandedMenu.geradores && (
+                <div className="pl-10 pr-2 space-y-1 mt-1">
+                   {sortTools(toolsConfig).map(([key, tool]) => (
+                        <button 
+                            key={key}
+                            onClick={() => hasAccess(key) && setActivePage(key)} 
+                            className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === key ? 'bg-white/10 text-[#00DBFF]' : hasAccess(key) ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+                        >
+                            {tool.label}
+                            {!hasAccess(key) && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
+                        </button>
+                   ))}
+                </div>
+              )}
+            </div>
+            {(user.role === 'admin' || user.permissions.includes('all')) && (
+              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Administração
+              </button>
+            )}
+          </div>
+        </nav>
+        <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-[#00DBFF] text-[#002233] flex items-center justify-center font-bold text-sm">{user.name.charAt(0)}</div>
+            <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name.split(' ')[0]}</p><p className="text-[10px] text-slate-400 truncate uppercase">{user.role}</p></div>
+            <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+        </div>
+      </aside>
+      <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
+        {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} />}
+        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} />}
+      </main>
+    </div>
+  );
+}
+
+// ============================================================================
+// 8. APP ROOT
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  
+  // 1. Initial State from LocalStorage (Sync)
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('core_users');
+    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  });
+  
+  // Restore user session IMMEDIATELY on mount
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        setUser(parsed);
+      } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
   const [templates, setTemplates] = useState({});
-  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS);
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); 
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
   const [dbReady, setDbReady] = useState(false);
 
+  // 2. Persist Login
   useEffect(() => {
-      signInAnonymously(auth).then(() => { setDbReady(true); }).catch(console.error);
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
+
+  // 3. Firebase Connection
+  useEffect(() => {
+      const unsubAuth = onAuthStateChanged(auth, (authUser) => {
+          if (authUser) {
+              setDbReady(true);
+          } else {
+              signInAnonymously(auth).catch(console.error);
+          }
+      });
+      return () => unsubAuth();
   }, []);
 
   useEffect(() => {
@@ -930,23 +1035,6 @@ export default function App() {
       }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
-
-  // RESTAURA SESSÃO DO LOCALSTORAGE
-  useEffect(() => {
-    const session = localStorage.getItem('core_session_user');
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        setUser(parsed);
-      } catch (e) { localStorage.removeItem('core_session_user'); }
-    }
-  }, []);
-
-  // PERSISTE SESSÃO NO LOCALSTORAGE
-  useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
-  }, [user]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
