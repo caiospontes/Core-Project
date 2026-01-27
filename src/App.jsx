@@ -31,7 +31,6 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Inicialização segura
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,8 +39,9 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
 const sortTools = (config) => {
+    if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
@@ -50,7 +50,7 @@ const sortTools = (config) => {
 };
 
 // ============================================================================
-// 2. COMPONENTE SAFE PREVIEW (A4 RESTRITO - FIT TO SCREEN)
+// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -61,35 +61,21 @@ const SafePreview = ({ html }) => {
     const updateScale = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
-        
-        // Dimensões A4 em pixels (96 DPI)
-        const A4_WIDTH_PX = 794; 
-        const A4_HEIGHT_PX = 1123; 
-        
-        // Margem de segurança
+        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         const PADDING = 40;
         
-        // Calcula a largura disponível
+        // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
-        
-        // Calcula a escala para caber na largura (Fit Width)
-        // Isso garante que a folha nunca seja cortada lateralmente
-        let scale = availableWidth / A4_WIDTH_PX;
-        
-        // Limite máximo de zoom para não distorcer em telas muito grandes
-        if (scale > 1.2) scale = 1.2;
+        const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // Calcula a altura do conteúdo real para ajuste dinâmico
-        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : A4_HEIGHT_PX;
-        const displayHeight = Math.max(contentHeight, A4_HEIGHT_PX);
+        // Altura do conteúdo
+        const contentHeight = shadowRootRef.current?.body?.scrollHeight || 1123;
+        const displayHeight = Math.max(contentHeight, 1123); 
         
-        // Aplica a altura real ao container da folha
         containerRef.current.style.height = `${displayHeight}px`;
-        
-        // Ajusta o wrapper externo para compensar o scale e a altura
         wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
       }
     };
@@ -97,7 +83,6 @@ const SafePreview = ({ html }) => {
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
-    // Múltiplos timeouts para garantir renderização de fontes/imagens
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -118,13 +103,13 @@ const SafePreview = ({ html }) => {
       <style>
         :host { 
             display: block; 
-            width: 794px;  /* 210mm fixo */
-            min-height: 1123px; /* 297mm fixo */
+            width: 794px; 
+            min-height: 1123px; 
             height: auto;
             background: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             margin: 0 auto;
-            overflow: visible; /* Permite crescer sem cortar */
+            overflow: visible; /* Permite crescer */
             padding: 0;
         }
         body { 
@@ -139,25 +124,9 @@ const SafePreview = ({ html }) => {
             word-wrap: break-word;
         }
         * { box-sizing: border-box; max-width: 100%; }
-        
-        /* Força imagens a respeitarem limites */
-        img { 
-            max-width: 100% !important; 
-            height: auto !important; 
-            display: block; 
-        }
-        
-        /* Tabelas com layout fixo para não estourar */
-        table { 
-            width: 100% !important; 
-            border-collapse: collapse; 
-            table-layout: fixed; 
-        }
-        td, th {
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-        
+        img { max-width: 100%; height: auto; display: block; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        td, th { word-wrap: break-word; overflow-wrap: break-word; }
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -175,7 +144,7 @@ const SafePreview = ({ html }) => {
 };
 
 // ============================================================================
-// 3. CONSTANTES PADRÃO
+// 3. DADOS PADRÃO
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -186,9 +155,8 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.6', date: '2024-02-12', title: 'Correção Geral', content: 'Resolução de erros de referência no Admin e ajuste fino no preview de impressão.' },
-  { id: '2', version: '3.4', date: '2024-02-06', title: 'Ajuste Live Preview', content: 'Correção de corte de conteúdo no preview e ajuste automático de altura.' },
-  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
+  { id: '1', version: '3.7', date: '2024-02-12', title: 'Correção de Renderização', content: 'Resolução de problemas de componentes e ajuste final no Live Preview A4.' },
+  { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -255,7 +223,7 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 // 4. COMPONENTES DE PÁGINA
 // ============================================================================
 
-// --- LOGIN ---
+// --- LOGIN PAGE ---
 const LoginPage = ({ onLogin, users, dbReady }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -277,7 +245,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
       const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
-        setError('E-mail não encontrado na lista de convites.');
+        setError('E-mail não encontrado.');
         setLoading(false);
         return;
       }
@@ -313,7 +281,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
     const devUser = users.length > 0 
         ? users.find(u => u.email === 'dev@core.teste') 
         : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
-    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado. Aguarde carregamento.');
+    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado.');
   };
 
   return (
@@ -387,6 +355,85 @@ const HomePage = ({ onNavigate, user, changelog, toolsConfig }) => (
   </div>
 );
 
+// --- GERADOR DINÂMICO ---
+const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
+  const [formData, setFormData] = useState({});
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => {
+    const config = tagsConfig[moduleId] || { sessions: [] };
+    const activeSessions = config.sessions.filter(s => s.active);
+    setSessions(activeSessions);
+    const initialData = { ...formData };
+    activeSessions.forEach(session => {
+        session.tags.forEach(tag => {
+            if (initialData[tag.id] === undefined) initialData[tag.id] = '';
+            if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
+        });
+    });
+    setFormData(initialData);
+  }, [tagsConfig, moduleId]);
+
+  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
+
+  const renderDocument = () => {
+      let html = template?.content || DEFAULT_HTML_TEMPLATE;
+      sessions.forEach(session => {
+          session.tags.forEach(tag => {
+              let val = formData[tag.id] || '';
+              if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
+              const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
+              html = html.split(tagPattern).join(val);
+          });
+      });
+      return html;
+  };
+
+  const handlePrint = () => {
+      const printContent = renderDocument();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`<html><head><title>Imprimir</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+  };
+
+  return (
+    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
+      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
+          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-6">
+            {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
+            {sessions.map(session => (
+                <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
+                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
+                        {session.title}
+                    </h3>
+                    <div className="space-y-3">
+                        {session.tags.map(tag => (
+                            <div key={tag.id}>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
+                                <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag.id, e.target.value)} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
+        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
+            <SafePreview html={renderDocument()} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- ADMIN PANEL ---
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
@@ -424,15 +471,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
-  const getSortedTools = () => {
-    return Object.entries(toolsConfig).sort(([, a], [, b]) => {
-      if (a.active && !b.active) return -1;
-      if (!a.active && b.active) return 1;
-      return a.label.localeCompare(b.label);
-    });
-  };
-
-  // --- Handlers ---
+  // Handlers
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -477,7 +516,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   };
 
   const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Excluir sessão e todas as suas tags?')) return;
+    if (!window.confirm('Excluir sessão?')) return;
     const currentConfig = tagsConfig[tagModuleFilter];
     const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
     await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
@@ -534,7 +573,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
         setEditingTag(null);
         setEditingTagId(null);
         alert('Tag salva!');
-      } else { alert('Erro!'); }
+      } else { alert('Erro ou tag duplicada!'); }
   };
   const handleDeleteTag = async (sessionId, tagIndex, module = tagModuleFilter) => {
       if(!window.confirm('Excluir?')) return;
@@ -589,6 +628,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
   const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
   const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
+  
   const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
   const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
   const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
@@ -629,13 +669,13 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
                             <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
-                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
                         {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{getSortedTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{sortTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
             
@@ -645,7 +685,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
-                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
                             <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
@@ -690,7 +730,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {getSortedTools(toolsConfig).map(([key, tool]) => (
+                        {sortTools(toolsConfig).map(([key, tool]) => (
                             <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
                                     <div className="flex justify-between items-start mb-3">
@@ -829,82 +869,70 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 };
 
 // ============================================================================
-// 6. GERADOR DINÂMICO
+// 6. DASHBOARD (Wrapper)
 // ============================================================================
-const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
-  const [formData, setFormData] = useState({});
-  const [sessions, setSessions] = useState([]);
-
-  useEffect(() => {
-    const config = tagsConfig[moduleId] || { sessions: [] };
-    const activeSessions = config.sessions.filter(s => s.active);
-    setSessions(activeSessions);
-    const initialData = { ...formData };
-    activeSessions.forEach(session => {
-        session.tags.forEach(tag => {
-            if (initialData[tag.id] === undefined) initialData[tag.id] = '';
-            if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
-        });
-    });
-    setFormData(initialData);
-  }, [tagsConfig, moduleId]);
-
-  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
-
-  const renderDocument = () => {
-      let html = template?.content || DEFAULT_HTML_TEMPLATE;
-      sessions.forEach(session => {
-          session.tags.forEach(tag => {
-              let val = formData[tag.id] || '';
-              if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
-              const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
-              html = html.split(tagPattern).join(val);
-          });
-      });
-      return html;
-  };
-
-  const handlePrint = () => {
-      const printContent = renderDocument();
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`<html><head><title>Imprimir</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+const Dashboard = ({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig }) => {
+  const [activePage, setActivePage] = useState('Home');
+  const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
+  const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
+  const hasAccess = (toolKey) => {
+      const tool = toolsConfig[toolKey];
+      if (!tool || !tool.active) return false;
+      return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
   };
 
   return (
-    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
-      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
-        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
-          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
+    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
+      <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
+      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
+        <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
+          <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
+          <span className="font-bold text-sm tracking-widest text-center mt-2">CORE | Centro de Otimização</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-6">
-            {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
-            {sessions.map(session => (
-                <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
-                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
-                        {session.title}
-                    </h3>
-                    <div className="space-y-3">
-                        {session.tags.map(tag => (
-                            <div key={tag.id}>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
-                                <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag.id, e.target.value)} />
-                            </div>
-                        ))}
-                    </div>
+        <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
+          <div className="px-3 space-y-1">
+            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
+            </button>
+            <div>
+              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">
+                <div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div>
+                <svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {expandedMenu.geradores && (
+                <div className="pl-10 pr-2 space-y-1 mt-1">
+                   {sortTools(toolsConfig).map(([key, tool]) => (
+                        <button 
+                            key={key}
+                            onClick={() => hasAccess(key) && setActivePage(key)} 
+                            className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === key ? 'bg-white/10 text-[#00DBFF]' : hasAccess(key) ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+                        >
+                            {tool.label}
+                            {!hasAccess(key) && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
+                        </button>
+                   ))}
                 </div>
-            ))}
+              )}
+            </div>
+            {(user.role === 'admin' || user.permissions.includes('all')) && (
+              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Administração
+              </button>
+            )}
+          </div>
+        </nav>
+        <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-[#00DBFF] text-[#002233] flex items-center justify-center font-bold text-sm">{user.name.charAt(0)}</div>
+            <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name.split(' ')[0]}</p><p className="text-[10px] text-slate-400 truncate uppercase">{user.role}</p></div>
+            <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
         </div>
-      </div>
-      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
-        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
-            <SafePreview html={renderDocument()} />
-        </div>
-      </div>
+      </aside>
+      <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
+        {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} />}
+        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} />}
+      </main>
     </div>
   );
 };
