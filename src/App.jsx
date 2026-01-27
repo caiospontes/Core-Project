@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 
 // ============================================================================
-// CONFIGURAÇÃO FIREBASE
+// 1. CONFIGURAÇÃO FIREBASE
 // ============================================================================
 
 const firebaseConfig = {
@@ -31,6 +31,7 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
+// Inicialização segura
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,7 +41,7 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // ============================================================================
-// COMPONENTE: SAFE PREVIEW (A4 DINÂMICO - AUTO HEIGHT)
+// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
 // ============================================================================
 const SafePreview = ({ html }) => {
   const containerRef = useRef(null);
@@ -48,38 +49,36 @@ const SafePreview = ({ html }) => {
   const shadowRootRef = useRef(null);
 
   useEffect(() => {
-    const updateSize = () => {
+    const updateScale = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
         const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         
         // 1. Calcula escala para caber na largura (Fit Width)
         let scale = (parentWidth - 40) / A4_WIDTH_PX;
-        if (scale > 1.2) scale = 1.2; // Max zoom
+        if (scale > 1.3) scale = 1.3; // Max zoom
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // 2. Calcula altura real do conteúdo
-        // Precisamos acessar o body dentro do shadowRoot
-        const contentHeight = shadowRootRef.current.body.scrollHeight;
-        // Altura mínima de uma página A4 (1123px)
-        const finalHeight = Math.max(contentHeight, 1123);
+        // 2. Calcula altura real do conteúdo para ajustar o container
+        // Isso evita cortes se o conteúdo for maior que uma página A4
+        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
+        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
         
-        // Aplica a altura ao container da folha
-        containerRef.current.style.height = `${finalHeight}px`;
+        containerRef.current.style.height = `${displayHeight}px`;
         
         // Ajusta o wrapper externo para ter scroll correto com o scale aplicado
-        wrapperRef.current.style.height = `${(finalHeight * scale) + 50}px`;
+        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`;
       }
     };
 
-    const resizeObserver = new ResizeObserver(updateSize);
+    const resizeObserver = new ResizeObserver(updateScale);
     if (wrapperRef.current) resizeObserver.observe(wrapperRef.current);
     
-    // Updates iniciais
-    setTimeout(updateSize, 100);
-    setTimeout(updateSize, 500); // Retry para garantir carregamento de imagens
+    // Updates iniciais com delay para garantir carregamento de fontes/imagens
+    setTimeout(updateScale, 100);
+    setTimeout(updateScale, 500);
 
     return () => resizeObserver.disconnect();
   }, [html]);
@@ -91,18 +90,18 @@ const SafePreview = ({ html }) => {
         shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
     }
     
-    // CSS que permite crescimento vertical (height: auto)
-    shadowRootRef.current.innerHTML = `
+    const shadowRoot = shadowRootRef.current;
+    
+    shadowRoot.innerHTML = `
       <style>
         :host { 
             display: block; 
             width: 794px; /* 210mm */
             min-height: 1123px; /* 297mm */
-            height: auto; /* Permite crescer */
             background: white;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            overflow: visible;
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
             margin: 0 auto;
+            overflow: visible; /* Permite crescer */
         }
         body { 
             margin: 0; 
@@ -111,10 +110,12 @@ const SafePreview = ({ html }) => {
             width: 100%; 
             min-height: 100%;
             box-sizing: border-box;
+            color: black;
         }
         * { box-sizing: border-box; }
-        img { max-width: 100%; height: auto; }
+        img { max-width: 100%; height: auto; display: block; }
         table { border-collapse: collapse; width: 100%; }
+        p { margin: 0 0 10px 0; }
         @media print { :host { display: none; } }
       </style>
       ${html}
@@ -122,14 +123,14 @@ const SafePreview = ({ html }) => {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full flex justify-center py-4 relative">
+    <div ref={wrapperRef} className="w-full flex justify-center py-4 relative bg-slate-100 overflow-hidden">
       <div ref={containerRef}></div>
     </div>
   );
 };
 
 // ============================================================================
-// DADOS PADRÃO
+// 3. CONSTANTES E DADOS PADRÃO
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -140,8 +141,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.3', date: '2024-02-05', title: 'Correção Crítica', content: 'Restauração do módulo Gerador Dinâmico e ajuste de altura automática do A4.' },
-  { id: '2', version: '3.2', date: '2024-02-03', title: 'Gerenciador Avançado', content: 'Arrastar e soltar tags, redimensionamento automático A4 e gestão de geradores.' },
+  { id: '1', version: '3.4', date: '2024-02-06', title: 'Ajuste Live Preview', content: 'Correção de corte de conteúdo no preview e ajuste automático de altura.' },
+  { id: '2', version: '3.3', date: '2024-02-05', title: 'Correção de Bugs', content: 'Resolução de problemas no editor de tags e carregamento de componentes.' },
+  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -205,8 +207,10 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 </div>`;
 
 // ============================================================================
-// 3. TELA DE LOGIN
+// 4. COMPONENTES DE PÁGINAS
 // ============================================================================
+
+// --- LOGIN PAGE ---
 const LoginPage = ({ onLogin, users, dbReady }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -226,9 +230,21 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 
     setTimeout(() => {
       const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-      if (!foundUser) { setError('E-mail não encontrado na lista de convites.'); setLoading(false); return; }
-      if (!foundUser.active) { setError('Conta desativada.'); setLoading(false); return; }
-      onLogin(foundUser); setLoading(false);
+      
+      if (!foundUser) {
+        setError('E-mail não encontrado na lista de convites.');
+        setLoading(false);
+        return;
+      }
+
+      if (!foundUser.active) {
+        setError('Conta desativada.');
+        setLoading(false);
+        return;
+      }
+
+      onLogin(foundUser);
+      setLoading(false);
     }, 800);
   };
 
@@ -251,8 +267,11 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   };
 
   const handleDevLogin = () => {
-    const devUser = users.length > 0 ? users.find(u => u.email === 'dev@core.teste') : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
-    if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado. Aguarde carregamento.');
+    const devUser = users.length > 0 
+        ? users.find(u => u.email === 'dev@core.teste') 
+        : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
+    if (devUser) onLogin(devUser);
+    else alert('Usuário DEV não encontrado. Aguarde carregamento.');
   };
 
   return (
@@ -288,35 +307,36 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
   );
 };
 
-// ============================================================================
-// 4. PAINEL ADMINISTRATIVO (ATUALIZADO)
-// ============================================================================
+// --- ADMIN PANEL ---
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
-  // States
-  const [uploadStatus, setUploadStatus] = useState(null);
-  const [editingTemplate, setEditingTemplate] = useState(null); 
-  const [htmlContent, setHtmlContent] = useState('');
-  const textAreaRef = useRef(null);
-
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
-  const [editingUserId, setEditingUserId] = useState(null);
-
-  const [editingTagId, setEditingTagId] = useState(null);
-  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
+  // Tag Management
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
-  const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
-  const [newSessionName, setNewSessionName] = useState('');
+  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
   const [editingTag, setEditingTag] = useState(null);
+  const [newSessionName, setNewSessionName] = useState('');
+  const [tempDelimiters, setTempDelimiters] = useState(delimiters);
 
+  // Tools Management
   const [showToolModal, setShowToolModal] = useState(false);
   const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
   const [isEditingTool, setIsEditingTool] = useState(false);
   const [editingToolKey, setEditingToolKey] = useState(null);
 
+  // Template Editing
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null); 
+  const [htmlContent, setHtmlContent] = useState('');
+  const textAreaRef = useRef(null);
+
+  // User Management
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
+  const [editingUserId, setEditingUserId] = useState(null);
+
+  // Changelog Management
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
@@ -357,33 +377,50 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     await setDoc(getDocRef('tags', tagModuleFilter), updatedConfig);
     setNewSessionName('');
   };
+
   const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Excluir sessão?')) return;
+    if (!window.confirm('Excluir sessão e todas as suas tags?')) return;
     const currentConfig = tagsConfig[tagModuleFilter];
     const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
     await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
   };
+
+  const handleRenameSession = async (sessionId) => {
+    const newTitle = prompt("Novo nome:");
+    if(newTitle) {
+      const currentConfig = tagsConfig[tagModuleFilter];
+      const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
+      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
+    }
+  };
+
   const toggleSessionActive = async (sessionId) => {
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = currentConfig.sessions.map(s => s.id === sessionId ? { ...s, active: !s.active } : s);
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
+
   const saveTag = async (e) => {
       e.preventDefault();
       if (!tagForm.sessionId) return alert('Selecione uma sessão!');
       const cleanId = tagForm.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions || []));
+      
       const sessionIndex = sessions.findIndex(s => s.id === (editingTag ? editingTag.sessionId : tagForm.sessionId));
       if(sessionIndex === -1) return false;
+
       const newTag = { id: cleanId, label: tagForm.label, type: tagForm.type };
+
       if (editingTag) {
           if (editingTag.sessionId !== tagForm.sessionId) {
                const oldSessionIndex = sessions.findIndex(s => s.id === editingTag.sessionId);
                if(oldSessionIndex !== -1) sessions[oldSessionIndex].tags.splice(editingTag.tagIndex, 1);
                const newSessionIndex = sessions.findIndex(s => s.id === tagForm.sessionId);
                sessions[newSessionIndex].tags.push(newTag);
-          } else { sessions[sessionIndex].tags[editingTag.tagIndex] = newTag; }
+          } else {
+               sessions[sessionIndex].tags[editingTag.tagIndex] = newTag;
+          }
       } else {
           let exists = false;
           sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
@@ -393,6 +430,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       setEditingTag(null); setEditingTagId(null); setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId });
   };
+
   const handleDeleteTag = async (sessionId, tagIndex) => {
       if(!window.confirm('Excluir tag?')) return;
       const currentConfig = tagsConfig[tagModuleFilter];
@@ -401,6 +439,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       sessions[sessionIndex].tags.splice(tagIndex, 1);
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
+
   const prepareEditTag = (tag, sessionId, index) => {
       setEditingTag({ sessionId, tagIndex: index, tagData: tag });
       setEditingTagId(tag.id);
@@ -413,10 +452,12 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       e.preventDefault();
       const data = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (data.module !== tagModuleFilter || data.sessionId === targetSessionId) return;
+
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
       const sourceSession = sessions.find(s => s.id === data.sessionId);
       const targetSession = sessions.find(s => s.id === targetSessionId);
+
       if (sourceSession && targetSession) {
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
           targetSession.tags.push(movedTag);
@@ -424,7 +465,6 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       }
   };
 
-  // Tools
   const handleSaveTool = async (e) => {
       e.preventDefault();
       const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -466,7 +506,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto">
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -535,7 +575,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {getSortedTools().map(([key, tool]) => (
-                            <div key={key} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
+                            <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="p-2 bg-slate-50 rounded-lg"><svg className="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
@@ -585,7 +625,9 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                         {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
                             <div key={s.id} className="mb-4">
                                 <p className="text-[10px] text-[#00DBFF] font-bold uppercase mb-1">{s.title}</p>
-                                {s.tags.map(tag => <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">{delimiters.prefix}{tag.id}{delimiters.suffix}</button>)}
+                                {s.tags.map(tag => (
+                                    <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">{delimiters.prefix}{tag.id}{delimiters.suffix}</button>
+                                ))}
                             </div>
                         ))}
                     </div>
@@ -638,6 +680,8 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     </div>
   );
 };
+
+// ... (DynamicGenerator e HomePage mantidos como estavam, pois já estavam corretos)
 
 // ============================================================================
 // 7. GERADOR DINÂMICO (RESTAURADO)
@@ -720,7 +764,8 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
   );
 };
 
-// ... (HomePage e App Root mantidos, mas HomePage recebe toolsConfig atualizado)
+// ... (HomePage e App Root mantidos iguais, atualizando apenas toolsConfig no Dashboard)
+
 // ============================================================================
 // 5. HOME PAGE
 // ============================================================================
