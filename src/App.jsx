@@ -16,6 +16,7 @@ import {
   deleteDoc, 
   onSnapshot 
 } from 'firebase/firestore';
+import { LucideMenu, LucideX } from 'lucide-react'; // Ícones para menu mobile
 
 // ============================================================================
 // 1. CONFIGURAÇÃO FIREBASE & UTILS
@@ -40,7 +41,7 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
+// Helper para ordenar ferramentas
 function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
@@ -51,7 +52,7 @@ function sortTools(config) {
 }
 
 // ============================================================================
-// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
+// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO RESPONSIVO)
 // ============================================================================
 function SafePreview({ html }) {
   const containerRef = useRef(null);
@@ -63,22 +64,21 @@ function SafePreview({ html }) {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
         const parentWidth = wrapperRef.current.clientWidth;
         const A4_WIDTH_PX = 794; // 210mm @ 96dpi
-        const PADDING = 40;
+        const PADDING = 20; // Margem menor para mobile
         
-        // Calcula escala para caber na largura disponível
+        // Calcula escala
         const availableWidth = parentWidth - PADDING;
+        // Permite scale menor em mobile
         const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // Altura do conteúdo
         const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
-        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
+        const displayHeight = Math.max(contentHeight, 1123);
         
         containerRef.current.style.height = `${displayHeight}px`;
-        // Ajusta wrapper com margem extra no final
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
+        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
       }
     };
 
@@ -136,7 +136,7 @@ function SafePreview({ html }) {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
+    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-2 custom-scroll">
       <div 
         ref={containerRef} 
         style={{ width: '794px', minHeight: '1123px', transition: 'transform 0.1s ease-out' }}
@@ -157,9 +157,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
-  { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
-  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
+  { id: '1', version: '4.1', date: '2024-02-13', title: 'Responsividade', content: 'Sistema adaptado para dispositivos móveis e sincronização global de geradores.' },
+  { id: '2', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
+  { id: '3', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -330,12 +330,12 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
         <p className="text-slate-400 text-lg max-w-2xl">Gestão centralizada de ativos e processos.</p>
       </div>
     </div>
-    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+    <div className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
         <div className="flex-1">
             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Ferramentas</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {sortTools(toolsConfig).map(([key, tool]) => (
-                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
+                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed grayscale'}`}>
                         <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-lg flex items-center justify-center mb-4"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
                         <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
                         <p className="text-sm text-slate-500 mt-2 h-10">{tool.desc}</p>
@@ -579,7 +579,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
+      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print hidden md:flex">
         <div className="p-6 border-b border-slate-100"><h2 className="text-xl font-black text-[#002233]">Administração</h2></div>
         <nav className="flex-1 p-4 space-y-2">
             {['templates', 'tags', 'tools', 'users', 'changelog'].map(tab => (
@@ -602,13 +602,13 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                         </div>
                         {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{sortTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{sortTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? templates[key].name : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
             
             {activeTab === 'tags' && (
-                <div className="flex gap-6 items-start h-full">
-                     <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
+                <div className="flex flex-col md:flex-row gap-6 items-start h-full">
+                     <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-4 max-h-full overflow-y-auto custom-scroll">
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
@@ -632,7 +632,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                             <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
-                     <div className="flex-1 space-y-4">
+                     <div className="flex-1 space-y-4 w-full">
                          {(tagsConfig[tagModuleFilter]?.sessions || []).map((session) => (
                              <div key={session.id} className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} onDragOver={onDragOver} onDrop={(e) => onDrop(e, session.id)}>
                                  <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
@@ -841,8 +841,8 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
   };
 
   return (
-    <div className="flex flex-row h-full w-full bg-[#f0f4f8]">
-      <div className="w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
+    <div className="flex flex-col md:flex-row h-full w-full bg-[#f0f4f8]">
+      <div className="w-full md:w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
           <h2 className="font-bold text-[#002233]">Preenchimento</h2>
           <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
@@ -882,6 +882,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
 function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig }) {
   const [activePage, setActivePage] = useState('Home');
   const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
   const hasAccess = (toolKey) => {
       const tool = toolsConfig[toolKey];
@@ -890,16 +891,23 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
   };
 
   return (
-    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
+    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden relative">
       <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
-      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
+      
+      {/* Mobile Menu Button */}
+      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden absolute top-4 left-4 z-50 text-white bg-[#002233] p-2 rounded">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
+
+      {/* Sidebar */}
+      <aside className={`fixed md:relative w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-40 shadow-xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
           <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
           <span className="font-bold text-sm tracking-widest text-center mt-2">CORE | Centro de Otimização</span>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
           <div className="px-3 space-y-1">
-            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+            <button onClick={() => { setActivePage('Home'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
             </button>
             <div>
@@ -912,7 +920,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
                    {sortTools(toolsConfig).map(([key, tool]) => (
                         <button 
                             key={key}
-                            onClick={() => hasAccess(key) && setActivePage(key)} 
+                            onClick={() => { hasAccess(key) && setActivePage(key); setMobileMenuOpen(false); }} 
                             className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === key ? 'bg-white/10 text-[#00DBFF]' : hasAccess(key) ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
                         >
                             {tool.label}
@@ -923,7 +931,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               )}
             </div>
             {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Administração
               </button>
@@ -936,6 +944,10 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
             <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
         </div>
       </aside>
+      
+      {/* Overlay para mobile */}
+      {mobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>}
+
       <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
         {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
         {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} />}
@@ -950,47 +962,16 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  
-  // 1. Initial State from LocalStorage (Sync)
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('core_users');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
-  });
-  
-  // Restore user session IMMEDIATELY on mount
-  useEffect(() => {
-    const session = localStorage.getItem('core_session_user');
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        setUser(parsed);
-      } catch (e) { localStorage.removeItem('core_session_user'); }
-    }
-  }, []);
-
+  const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState({});
-  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); 
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS);
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
   const [dbReady, setDbReady] = useState(false);
 
-  // 2. Persist Login
   useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
-  }, [user]);
-
-  // 3. Firebase Connection
-  useEffect(() => {
-      const unsubAuth = onAuthStateChanged(auth, (authUser) => {
-          if (authUser) {
-              setDbReady(true);
-          } else {
-              signInAnonymously(auth).catch(console.error);
-          }
-      });
-      return () => unsubAuth();
+      signInAnonymously(auth).then(() => { setDbReady(true); }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -1035,6 +1016,20 @@ export default function App() {
       }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
+
+  // RESTAURA SESSÃO
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
+  // PERSISTE SESSÃO
+  useEffect(() => {
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
