@@ -41,7 +41,117 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // ============================================================================
-// 2. CONSTANTES E DADOS PADRÃO
+// 2. COMPONENTE SAFE PREVIEW (A4 REAJUSTADO - LÓGICA DE IMPRESSÃO)
+// ============================================================================
+const SafePreview = ({ html }) => {
+  const containerRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const shadowRootRef = useRef(null);
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
+        const parentWidth = wrapperRef.current.clientWidth;
+        
+        // Largura exata A4 em pixels a 96 DPI (padrão web)
+        const A4_WIDTH_PX = 794; 
+        
+        // Margem de segurança para não colar na borda da tela
+        const PADDING = 30;
+        
+        // Calcula a escala baseada apenas na largura (Fit Width)
+        // Isso simula o comportamento de visualizadores de PDF
+        let scale = (parentWidth - PADDING) / A4_WIDTH_PX;
+        
+        // Limite de zoom para não ficar excessivamente grande em monitores 4K
+        if (scale > 1.5) scale = 1.5; 
+        
+        containerRef.current.style.transform = `scale(${scale})`;
+        containerRef.current.style.transformOrigin = 'top center';
+        
+        // Calcula a altura real do conteúdo renderizado
+        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
+        // Garante altura mínima de uma página A4 (1123px), mas deixa crescer se tiver mais conteúdo
+        const finalHeight = Math.max(contentHeight, 1123);
+        
+        // Aplica a altura no container (sem cortar nada)
+        containerRef.current.style.height = `${finalHeight}px`;
+        
+        // Ajusta o wrapper externo para ter o scroll correto considerando o scale
+        wrapperRef.current.style.height = `${(finalHeight * scale) + 50}px`; 
+      }
+    };
+
+    const observer = new ResizeObserver(updateScale);
+    if (wrapperRef.current) observer.observe(wrapperRef.current);
+    
+    // Updates sequenciais para garantir que imagens/fontes carregaram e ocuparam espaço
+    setTimeout(updateScale, 100);
+    setTimeout(updateScale, 500);
+    setTimeout(updateScale, 1000);
+
+    return () => observer.disconnect();
+  }, [html]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    if (!shadowRootRef.current) {
+        shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
+    }
+    
+    const shadowRoot = shadowRootRef.current;
+    
+    shadowRoot.innerHTML = `
+      <style>
+        :host { 
+            display: block; 
+            width: 210mm; /* Largura exata A4 */
+            min-height: 297mm; /* Altura mínima A4 */
+            height: auto; /* Permite crescer se o conteúdo for maior */
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            margin: 0 auto;
+            overflow: visible; /* IMPORTANTE: Não cortar o conteúdo */
+        }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif; 
+            width: 100%; 
+            height: 100%;
+            box-sizing: border-box;
+            color: black;
+            overflow-wrap: break-word;
+        }
+        * { box-sizing: border-box; }
+        /* Garante que imagens não estouram a largura */
+        img { max-width: 100%; height: auto; display: block; }
+        table { border-collapse: collapse; width: 100%; }
+        
+        /* Oculta o preview na hora de imprimir (pois usamos iframe dedicado) */
+        @media print { :host { display: none; } }
+      </style>
+      ${html}
+    `;
+  }, [html]);
+
+  return (
+    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
+      <div 
+        ref={containerRef} 
+        style={{ 
+           width: '794px', // Largura base fixa para cálculo de escala
+           minHeight: '1123px',
+           backgroundColor: 'white'
+        }}
+      ></div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 3. DADOS PADRÃO E UTILS
 // ============================================================================
 
 const DEFAULT_USERS = [
@@ -52,8 +162,8 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '3.5', date: '2024-02-07', title: 'Correção de Renderização', content: 'Correção crítica na ordem de carregamento de componentes e ajuste final no Live Preview A4.' },
-  { id: '2', version: '3.4', date: '2024-02-06', title: 'Ajuste Live Preview', content: 'Correção de corte de conteúdo no preview e ajuste automático de altura.' },
+  { id: '1', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
+  { id: '2', version: '3.5', date: '2024-02-07', title: 'Correção de Renderização', content: 'Correção crítica na ordem de carregamento de componentes.' },
   { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
 
@@ -117,94 +227,15 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
   <p>Declaro que <strong><<NOME>></strong> devolveu o notebook modelo <strong><<NOTEBOOK_MODELO>></strong> em <strong><<DATA>></strong>.</p>
 </div>`;
 
-// ============================================================================
-// 3. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
-// ============================================================================
-const SafePreview = ({ html }) => {
-  const containerRef = useRef(null);
-  const wrapperRef = useRef(null);
-  const shadowRootRef = useRef(null);
-
-  useEffect(() => {
-    const updateScale = () => {
-      if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
-        const parentWidth = wrapperRef.current.clientWidth;
-        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
-        
-        // 1. Calcula escala para caber na largura (Fit Width) com margem
-        const PADDING = 40;
-        let scale = (parentWidth - PADDING) / A4_WIDTH_PX;
-        if (scale > 1.2) scale = 1.2; // Limite máximo de zoom
-        
-        containerRef.current.style.transform = `scale(${scale})`;
-        containerRef.current.style.transformOrigin = 'top center';
-        
-        // 2. Calcula altura real do conteúdo para ajustar o container
-        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
-        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
-        
-        containerRef.current.style.height = `${displayHeight}px`;
-        
-        // Ajusta o wrapper externo para ter scroll correto com o scale aplicado
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
-      }
-    };
-
-    const observer = new ResizeObserver(updateScale);
-    if (wrapperRef.current) observer.observe(wrapperRef.current);
-    
-    setTimeout(updateScale, 100);
-    setTimeout(updateScale, 500);
-
-    return () => observer.disconnect();
-  }, [html]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    if (!shadowRootRef.current) {
-        shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
-    }
-    
-    const shadowRoot = shadowRootRef.current;
-    
-    shadowRoot.innerHTML = `
-      <style>
-        :host { 
-            display: block; 
-            width: 794px;  /* 210mm fixo para largura A4 */
-            min-height: 1123px; /* 297mm altura mínima A4 */
-            height: auto; /* Permite crescer */
-            background: white;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            overflow: visible; /* Permite ver tudo */
-        }
-        body { 
-            margin: 0; 
-            padding: 0; 
-            font-family: Arial, sans-serif; 
-            width: 100%; 
-            min-height: 100%;
-            box-sizing: border-box;
-            color: black;
-            overflow-wrap: break-word; /* Quebra palavras longas */
-            word-wrap: break-word;
-        }
-        * { box-sizing: border-box; }
-        table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-        td, th { word-wrap: break-word; overflow-wrap: break-word; }
-        img { max-width: 100%; height: auto; display: block; }
-        @media print { :host { display: none; } }
-      </style>
-      ${html}
-    `;
-  }, [html]);
-
-  return (
-    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4">
-      <div ref={containerRef} style={{ transformOrigin: 'top center', minWidth: '794px' }}></div>
-    </div>
-  );
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
+const getSortedToolsList = (config) => {
+    return Object.entries(config).sort(([, a], [, b]) => {
+        // Se um está ativo e o outro não, o ativo vem primeiro
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        // Se ambos tem o mesmo status, ordena por nome
+        return a.label.localeCompare(b.label);
+    });
 };
 
 // ============================================================================
@@ -282,7 +313,7 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
              <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-12" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">CORE</h1>
-          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização</p>
+          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização e Rendimento da Equipe</p>
           {!dbReady && <span className="text-xs text-yellow-500 animate-pulse block mt-4">Conectando ao banco de dados...</span>}
           {dbReady && <span className="text-xs text-green-500 block mt-4">Sistema Online</span>}
         </div>
@@ -310,44 +341,41 @@ const LoginPage = ({ onLogin, users, dbReady }) => {
 // ============================================================================
 const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) => {
   const [activeTab, setActiveTab] = useState('templates');
+  const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
-  // States
-  const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || ''); 
-  const [uploadStatus, setUploadStatus] = useState(null);
-  const [editingTemplate, setEditingTemplate] = useState(null); 
-  const [htmlContent, setHtmlContent] = useState('');
-  const textAreaRef = useRef(null);
-
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
-  const [editingUserId, setEditingUserId] = useState(null);
-
-  const [editingTagId, setEditingTagId] = useState(null);
-  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
+  // Tag Management
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
-  const [tempDelimiters, setTempDelimiters] = useState(delimiters); 
-  const [newSessionName, setNewSessionName] = useState('');
+  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
   const [editingTag, setEditingTag] = useState(null);
+  const [newSessionName, setNewSessionName] = useState('');
+  const [tempDelimiters, setTempDelimiters] = useState(delimiters);
 
+  // Tools Management
   const [showToolModal, setShowToolModal] = useState(false);
   const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
   const [isEditingTool, setIsEditingTool] = useState(false);
   const [editingToolKey, setEditingToolKey] = useState(null);
 
+  // Template Editing
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null); 
+  const [htmlContent, setHtmlContent] = useState('');
+  const textAreaRef = useRef(null);
+
+  // User Management
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userForm, setUserForm] = useState({ email: '', name: '', role: 'user', permissions: [] });
+  const [editingUserId, setEditingUserId] = useState(null);
+
+  // Changelog Management
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
 
+  // Editor Tags State
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
   const [editorTagForm, setEditorTagForm] = useState({ id: '', label: '', type: 'text' });
 
-  const getSortedTools = () => {
-    return Object.entries(toolsConfig).sort(([, a], [, b]) => {
-      if (a.active && !b.active) return -1;
-      if (!a.active && b.active) return 1;
-      return a.label.localeCompare(b.label);
-    });
-  };
-
+  // Handlers - File Upload
   const handleFileUpload = (e) => {
       const file = e.target.files[0];
       if(!targetModule) return alert("Selecione um módulo.");
@@ -366,9 +394,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
               setUploadStatus('Sucesso!');
           };
           reader.readAsText(file);
-      } else {
-          setUploadStatus('Erro: Apenas .html');
-      }
+      } else { setUploadStatus('Erro: Apenas .html'); }
   };
 
   const handleEditTemplate = (moduleKey) => {
@@ -376,6 +402,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       setHtmlContent(templates[moduleKey]?.content || DEFAULT_HTML_TEMPLATE);
   };
 
+  // Editor Utils
   const insertAtCursor = (textToInsert) => {
     const textarea = textAreaRef.current;
     if (textarea) {
@@ -391,12 +418,12 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
     }
   };
 
+  // Tag Handlers
   const saveTag = async (id, label, type, module, isEdit = false, originalId = null) => {
       const cleanId = id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       const currentTags = tagsConfig[module] || { sessions: [] };
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions || []));
       
-      // Encontra a sessão correta (ou default se null)
       const targetSessionId = tagForm.sessionId || sessions[0]?.id;
       const sessionIndex = sessions.findIndex(s => s.id === targetSessionId);
       
@@ -404,25 +431,29 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 
       const newTag = { id: cleanId, label, type };
 
-      // Se for edição de tag existente
       if (isEdit && editingTag) {
-          // Remove da sessão antiga
           const oldSessionIndex = sessions.findIndex(s => s.id === editingTag.sessionId);
           if (oldSessionIndex !== -1) {
               sessions[oldSessionIndex].tags.splice(editingTag.tagIndex, 1);
           }
       } else {
-          // Se for nova, verifica duplicidade global no módulo
           let exists = false;
           sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
           if(exists) return false;
       }
       
-      // Adiciona na (nova) sessão
       sessions[sessionIndex].tags.push(newTag);
-
       await setDoc(getDocRef('tags', module), { ...currentConfig, sessions });
       return true;
+  };
+
+  const handleDeleteTag = async (sessionId, tagIndex, module = tagModuleFilter) => {
+      if(!window.confirm('Excluir tag?')) return;
+      const currentConfig = tagsConfig[module];
+      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
+      const sessionIndex = sessions.findIndex(s => s.id === sessionId);
+      sessions[sessionIndex].tags.splice(tagIndex, 1);
+      await setDoc(getDocRef('tags', module), { ...currentConfig, sessions });
   };
 
   const handleSaveTagPanel = async (e) => {
@@ -438,70 +469,43 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       }
   };
 
-  const handleSaveTagInEditor = async (e) => {
-    e.preventDefault();
-    // Simula a estrutura do editingTag para reuso da lógica, usando a primeira sessão encontrada
-    // Simplificado para o editor: salva na primeira sessão se não especificado
-    const moduleId = editingTemplate;
-    const currentSessions = tagsConfig[moduleId]?.sessions || [];
-    if(currentSessions.length === 0) return alert("Crie uma sessão primeiro!");
-    
-    // Procura onde a tag está para poder editar (se já existir)
-    let foundSessionId = null;
-    let foundIndex = -1;
-    
-    // Se estamos editando uma tag existente
-    if (editorEditingTagId) {
-        for(let s of currentSessions) {
-            const idx = s.tags.findIndex(t => t.id === editorEditingTagId);
-            if(idx !== -1) { foundSessionId = s.id; foundIndex = idx; break; }
-        }
-    }
-    
-    // Define o objeto de tag 'antiga' para a função saveTag
-    const mockEditingTag = editorEditingTagId ? { sessionId: foundSessionId, tagIndex: foundIndex } : null;
-    
-    // Se for nova tag e sem sessão, usa a primeira
-    const targetSessionId = foundSessionId || currentSessions[0].id;
-    
-    // Configura o form state temporariamente para chamar a função saveTag (gambiarra para reuso)
-    // O ideal seria refatorar saveTag para aceitar params diretos, mas vamos adaptar:
-    // Chama saveTag adaptada:
-    
-    const cleanId = editorTagForm.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-    const sessions = JSON.parse(JSON.stringify(currentSessions));
-    
-    // Remove antiga
-    if (mockEditingTag) {
-        const sIdx = sessions.findIndex(s => s.id === mockEditingTag.sessionId);
-        sessions[sIdx].tags.splice(mockEditingTag.tagIndex, 1);
-    }
-    
-    // Adiciona nova
-    const tSIdx = sessions.findIndex(s => s.id === targetSessionId);
-    sessions[tSIdx].tags.push({ id: cleanId, label: editorTagForm.label, type: editorTagForm.type });
-    
-    await setDoc(getDocRef('tags', moduleId), { sessions });
-    
-    setEditorEditingTagId(null);
-    setEditorTagForm({ id: '', label: '', type: 'text' });
-  };
-
   const handleEditTagClick = (tag, sessionId, idx) => {
       setEditingTag({ sessionId, tagIndex: idx, tagData: tag });
       setEditingTagId(tag.id);
       setTagForm({ ...tag, sessionId });
   };
 
-  const handleDeleteTag = async (sessionId, tagIndex, module = tagModuleFilter) => {
-      if(!window.confirm('Excluir tag?')) return;
-      const currentConfig = tagsConfig[module];
-      const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
-      const sessionIndex = sessions.findIndex(s => s.id === sessionId);
-      sessions[sessionIndex].tags.splice(tagIndex, 1);
-      await setDoc(getDocRef('tags', module), { ...currentConfig, sessions });
+  const handleSaveTagInEditor = async (e) => {
+    e.preventDefault();
+    const success = await saveTag(editorTagForm.id, editorTagForm.label, editorTagForm.type, editingTemplate, true, editorEditingTagId);
+    if(success) {
+        setEditorEditingTagId(null);
+        setEditorTagForm({ id: '', label: '', type: 'text' });
+    } else {
+        alert("Erro ao editar tag.");
+    }
   };
-  
+
+  const handleCreateCustomTagInEditor = async (tagInput) => {
+    if(!tagInput) return;
+    const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const tagText = `${delimiters.prefix}${cleanId}${delimiters.suffix}`;
+    insertAtCursor(tagText);
+    
+    const currentConfig = tagsConfig[editingTemplate] || { sessions: [{id:'geral', title:'Geral', active:true, tags:[]}] };
+    const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
+    if(sessions.length === 0) sessions.push({id:'geral', title:'Geral', active:true, tags:[]});
+    
+    let exists = false;
+    sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
+    
+    if(!exists) {
+        sessions[0].tags.push({ id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' });
+        await setDoc(getDocRef('tags', editingTemplate), { ...currentConfig, sessions });
+    }
+  };
+
+  // Session Handlers
   const handleAddSession = async () => {
     if (!newSessionName) return;
     const currentConfig = tagsConfig[tagModuleFilter] || { sessions: [] };
@@ -512,19 +516,19 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
   };
 
   const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Excluir sessão?')) return;
+    if (!window.confirm('Excluir sessão e todas as suas tags?')) return;
     const currentConfig = tagsConfig[tagModuleFilter];
     const updatedSessions = currentConfig.sessions.filter(s => s.id !== sessionId);
     await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
   };
-  
+
   const handleRenameSession = async (sessionId) => {
-      const newTitle = prompt("Novo nome:");
-      if(newTitle) {
-        const currentConfig = tagsConfig[tagModuleFilter];
-        const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
-        await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
-      }
+    const newTitle = prompt("Novo nome:");
+    if(newTitle) {
+      const currentConfig = tagsConfig[tagModuleFilter];
+      const updatedSessions = currentConfig.sessions.map(s => s.id === sessionId ? {...s, title: newTitle} : s);
+      await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions: updatedSessions });
+    }
   };
 
   const toggleSessionActive = async (sessionId) => {
@@ -533,6 +537,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
   };
 
+  // Drag Drop
   const onDragStart = (e, sessionId, tagIndex) => e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
   const onDragOver = (e) => e.preventDefault();
   const onDrop = async (e, targetSessionId) => {
@@ -552,62 +557,22 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
       }
   };
 
-  const handleSaveTool = async (e) => {
-      e.preventDefault();
-      const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      const newToolsConfig = { ...toolsConfig };
-      if (isEditingTool && editingToolKey && editingToolKey !== cleanId) delete newToolsConfig[editingToolKey];
-      newToolsConfig[cleanId] = { ...toolForm, icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z' };
-      delete newToolsConfig[cleanId].id;
-      await setDoc(getDocRef('settings', 'tools'), newToolsConfig);
-      setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true });
-  };
-  
+  // Misc Handlers
+  const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert(`Delimitadores atualizados.`); };
+  const handleSaveTool = async (e) => { e.preventDefault(); const cleanId = toolForm.id.toLowerCase().replace(/[^a-z0-9_]/g, '_'); const newToolsConfig = { ...toolsConfig }; if (isEditingTool && editingToolKey && editingToolKey !== cleanId) delete newToolsConfig[editingToolKey]; newToolsConfig[cleanId] = { ...toolForm, icon: toolForm.icon || 'M13 10V3L4 14h7v7l9-11h-7z' }; delete newToolsConfig[cleanId].id; await setDoc(getDocRef('settings', 'tools'), newToolsConfig); setShowToolModal(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); };
   const prepareEditTool = (key, tool) => { setEditingToolKey(key); setToolForm({ id: key, ...tool }); setIsEditingTool(true); setShowToolModal(true); };
   const handleDeleteTool = async (key) => { if(window.confirm('Excluir?')) { const n = { ...toolsConfig }; delete n[key]; await setDoc(getDocRef('settings', 'tools'), n); }};
-
   const handleSaveEditedTemplate = async () => { await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' }); setEditingTemplate(null); alert('Salvo!'); };
-  const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert('Salvo.'); };
-
-  const handleSaveUser = async (e) => { e.preventDefault(); const uid=editingUserId||Date.now().toString(); const d={...userForm, id:uid, active:true}; if(d.role==='admin') d.permissions=['all']; await setDoc(getDocRef('users',uid),d,{merge:true}); setShowUserModal(false); };
+  const handleSaveUser = async (e) => { e.preventDefault(); const userId = editingUserId || Date.now().toString(); const userData = { ...userForm, id: userId, active: true }; if (userData.role === 'admin') userData.permissions = ['all']; if (!editingUserId && users.some(u => u.email === userForm.email)) return alert('E-mail já cadastrado.'); await setDoc(getDocRef('users', userId), userData); setShowUserModal(false); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); };
+  const handleEditUserClick = (user) => { setUserForm(user); setEditingUserId(user.id); setShowUserModal(true); };
   const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
-  const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
-  const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
-  const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
-  const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
-  const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
-  
-  // Editor Handlers for Tag Editing
+  const toggleUserPermission = (toolKey) => { if (userForm.permissions.includes(toolKey)) { setUserForm({ ...userForm, permissions: userForm.permissions.filter(p => p !== toolKey) }); } else { setUserForm({ ...userForm, permissions: [...userForm.permissions, toolKey] }); } };
+  const handleSaveLog = async (e) => { e.preventDefault(); const logId = editingLogId || Date.now().toString(); const logData = { ...newLog, id: logId }; await setDoc(getDocRef('changelog', logId), logData); setEditingLogId(null); setNewLog({ version: '', date: '', title: '', content: '' }); };
+  const handleEditLogClick = (log) => { setNewLog(log); setEditingLogId(log.id); };
+  const handleDeleteLog = async (id) => { if(window.confirm('Remover registro?')) await deleteDoc(getDocRef('changelog', id)); };
+
   const prepareEditTagInEditor = (tag) => { setEditorEditingTagId(tag.id); setEditorTagForm(tag); };
-  const handleDeleteTagInEditor = (tagId) => { 
-      const currentSessions = tagsConfig[editingTemplate]?.sessions || [];
-      let foundSessionId = null;
-      let foundIndex = -1;
-      for(let s of currentSessions) {
-          const idx = s.tags.findIndex(t => t.id === tagId);
-          if(idx !== -1) { foundSessionId = s.id; foundIndex = idx; break; }
-      }
-      if(foundSessionId) handleDeleteTag(foundSessionId, foundIndex, editingTemplate);
-  };
-  const handleCreateCustomTagInEditor = async (tagInput) => {
-    if(!tagInput) return;
-    const cleanId = tagInput.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-    const tagText = `${delimiters.prefix}${cleanId}${delimiters.suffix}`;
-    insertAtCursor(tagText);
-    
-    // Add to first session if new
-    const currentConfig = tagsConfig[editingTemplate] || { sessions: [{id:'geral', title:'Geral', active:true, tags:[]}] };
-    const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
-    if(sessions.length === 0) sessions.push({id:'geral', title:'Geral', active:true, tags:[]});
-    
-    let exists = false;
-    sessions.forEach(s => { if(s.tags.some(t => t.id === cleanId)) exists = true; });
-    
-    if(!exists) {
-        sessions[0].tags.push({ id: cleanId, label: cleanId.replace(/_/g, ' '), type: 'text' });
-        await setDoc(getDocRef('tags', editingTemplate), { ...currentConfig, sessions });
-    }
-  };
+  const handleDeleteTagInEditor = (tagId) => { const currentSessions = tagsConfig[editingTemplate]?.sessions || []; let foundSessionId = null; let foundIndex = -1; for(let s of currentSessions) { const idx = s.tags.findIndex(t => t.id === tagId); if(idx !== -1) { foundSessionId = s.id; foundIndex = idx; break; } } if(foundSessionId) handleDeleteTag(foundSessionId, foundIndex, editingTemplate); };
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
@@ -622,28 +587,31 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
+            {/* TEMPLATES */}
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
                         <div className="flex gap-4">
                             <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
-                                {Object.entries(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
                         </div>
                         {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">{Object.entries(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
+                    <div className="grid gap-3">{getSortedTools(toolsConfig).map(([key, tool]) => (<div key={key} className="bg-white p-4 rounded shadow flex justify-between items-center"><div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? 'Customizado' : 'Padrão'}</p></div><button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar HTML</button></div>))}</div>
                 </div>
             )}
+
+            {/* TAGS */}
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start h-full">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
-                                {Object.entries(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+                                {getSortedTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
                             <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
                             <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
@@ -651,7 +619,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                             <div className="flex gap-2 mb-2"><input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /><input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /></div>
                             <button onClick={handleSaveDelimiters} className="w-full bg-slate-200 text-xs py-1 rounded font-bold">Salvar Símbolos</button>
                         </div>
-                        <form onSubmit={saveTag} className="space-y-3">
+                        <form onSubmit={handleSaveTagPanel} className="space-y-3">
                             <h3 className="font-bold text-sm text-[#002233]">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
                             <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border p-2 rounded text-sm" required>
                                 <option value="">Selecione a Sessão...</option>
@@ -684,11 +652,12 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                 </div>
             )}
             
+            {/* TOOLS */}
             {activeTab === 'tools' && (
                 <div className="space-y-6">
                     <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {getSortedTools().map(([key, tool]) => (
+                        {getSortedTools(toolsConfig).map(([key, tool]) => (
                             <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-52 relative group hover:shadow-md transition-shadow">
                                 <div>
                                     <div className="flex justify-between items-start mb-3">
@@ -717,7 +686,7 @@ const AdminPanel = ({ users, templates, tagsConfig, delimiters, changelog, tools
                     </div>
                 </div>
             )}
-            
+
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
                      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -907,6 +876,8 @@ const DynamicGenerator = ({ template, tagsConfig, delimiters, moduleId }) => {
   );
 };
 
+// ... (HomePage e App Root mantidos iguais, atualizando apenas toolsConfig no Dashboard)
+
 // ============================================================================
 // 5. HOME PAGE
 // ============================================================================
@@ -1034,6 +1005,8 @@ export default function App() {
     if (session) {
       try {
         const parsed = JSON.parse(session);
+        // Verify if still valid against user list
+        // Note: Se o usuário foi deletado do banco, ele será deslogado quando a lista de usuários atualizar via Firestore
         setUser(parsed);
       } catch (e) { localStorage.removeItem('core_session_user'); }
     }
@@ -1076,9 +1049,11 @@ export default function App() {
       }, () => {});
       const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
           const loaded = {}; snap.forEach(doc => loaded[doc.id] = doc.data());
+          // Auto-migration for old data structure
           if (Object.keys(loaded).length === 0) {
               Object.entries(DEFAULT_TAGS_WITH_SESSIONS).forEach(([k, v]) => setDoc(getDocRef('tags', k), v));
           } else {
+              // Verifica se é estrutura antiga (array) e converte se necessário
               const migrated = {};
               Object.keys(loaded).forEach(k => {
                  if (loaded[k].list) { 
