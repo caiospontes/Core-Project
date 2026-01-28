@@ -701,7 +701,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                 key={session.id} 
                                 className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} 
                                 onDragOver={onDragOver} 
-                                onDrop={(e) => handleDrop(e, session.id)} // Drop no container (append)
+                                onDrop={(e) => handleDrop(e, session.id)} 
                             >
                                  <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
                                      <div className="flex items-center gap-2"><button onClick={() => toggleSessionActive(session.id)} title="Ativar/Desativar" className={`w-3 h-3 rounded-full ${session.active ? 'bg-green-500' : 'bg-red-500'}`}></button><h4 className="font-bold text-sm text-slate-700">{session.title}</h4></div>
@@ -710,12 +710,12 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                  <div className="divide-y divide-slate-100 min-h-[40px]">
                                      {session.tags.map((tag, idx) => (
                                          <div 
-                                            key={idx} 
+                                            key={tag.id} // Alterado de idx para tag.id para evitar problemas de re-render
                                             draggable 
                                             onDragStart={(e) => onDragStart(e, session.id, idx)} 
                                             onDragOver={onDragOver}
-                                            onDrop={(e) => handleDrop(e, session.id, idx)} // Drop na tag (insert)
-                                            className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors"
+                                            onDrop={(e) => handleDrop(e, session.id, idx)} 
+                                            className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors active:opacity-50"
                                         >
                                              <div>
                                                  <span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
@@ -1102,6 +1102,16 @@ export default function App() {
     if (session) {
       try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
     }
+    
+    // Favicon e Título
+    document.title = "CORE | Sistema";
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = "https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png"; // Ícone TOTVS Core
   }, []);
 
   const [templates, setTemplates] = useState({});
@@ -1173,30 +1183,6 @@ export default function App() {
       }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
-
-  // RESTAURA SESSÃO
-  useEffect(() => {
-    const session = localStorage.getItem('core_session_user');
-    if (session) {
-      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
-    }
-    
-    // Favicon e Título
-    document.title = "CORE | Sistema";
-    let link = document.querySelector("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.getElementsByTagName('head')[0].appendChild(link);
-    }
-    link.href = "https://i.imgur.com/dFv3pQh.png"; // Ícone TOTVS Core
-  }, []);
-
-  // PERSISTE SESSÃO
-  useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
-  }, [user]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
