@@ -16,7 +16,6 @@ import {
   deleteDoc, 
   onSnapshot 
 } from 'firebase/firestore';
-import { LucideMenu, LucideX } from 'lucide-react'; // Ícones para menu mobile
 
 // ============================================================================
 // 1. CONFIGURAÇÃO FIREBASE & UTILS
@@ -41,7 +40,7 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
 function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
@@ -52,7 +51,7 @@ function sortTools(config) {
 }
 
 // ============================================================================
-// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO RESPONSIVO)
+// 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
 // ============================================================================
 function SafePreview({ html }) {
   const containerRef = useRef(null);
@@ -61,30 +60,34 @@ function SafePreview({ html }) {
 
   useEffect(() => {
     const updateScale = () => {
-      if (wrapperRef.current && containerRef.current && shadowRootRef.current) {
+      if (wrapperRef.current && containerRef.current && shadowRootRef.current && shadowRootRef.current.body) {
         const parentWidth = wrapperRef.current.clientWidth;
         const A4_WIDTH_PX = 794; // 210mm @ 96dpi
-        const PADDING = 20; // Margem menor para mobile
+        const PADDING = 40;
         
-        // Calcula escala
+        // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
-        // Permite scale menor em mobile
+        // Permite scale um pouco maior para telas grandes
         const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        const contentHeight = shadowRootRef.current.body ? shadowRootRef.current.body.scrollHeight : 1123;
-        const displayHeight = Math.max(contentHeight, 1123);
+        // Altura do conteúdo
+        const contentHeight = shadowRootRef.current.body.scrollHeight;
+        // Altura mínima A4 (1123px) ou conteúdo se for maior
+        const displayHeight = Math.max(contentHeight, 1123); 
         
         containerRef.current.style.height = `${displayHeight}px`;
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 50}px`; 
+        // Ajusta wrapper com margem extra no final para scroll
+        wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
 
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
+    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -136,7 +139,7 @@ function SafePreview({ html }) {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-2 custom-scroll">
+    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
       <div 
         ref={containerRef} 
         style={{ width: '794px', minHeight: '1123px', transition: 'transform 0.1s ease-out' }}
@@ -157,9 +160,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.1', date: '2024-02-13', title: 'Responsividade', content: 'Sistema adaptado para dispositivos móveis e sincronização global de geradores.' },
-  { id: '2', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
-  { id: '3', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
+  { id: '1', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
+  { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
+  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -227,7 +230,7 @@ const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-
 // ============================================================================
 
 // --- LOGIN PAGE ---
-function LoginPage({ onLogin, users, dbReady }) {
+function LoginPage({ onLogin, users, dbReady, systemSettings }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -312,7 +315,14 @@ function LoginPage({ onLogin, users, dbReady }) {
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail Corporativo" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
             <button type="submit" disabled={loading} className="w-full bg-[#002233] border border-[#00DBFF]/30 text-[#00DBFF] font-bold py-3 rounded-lg hover:bg-[#00DBFF] hover:text-[#002233] transition-all text-sm">Entrar</button>
-            <div className="pt-2 text-center"><button type="button" onClick={handleDevLogin} className="text-[10px] text-slate-600 hover:text-white transition-colors">Desenvolvedor (Offline/Local)</button></div>
+            
+            {systemSettings?.devBypass && (
+                <div className="pt-2 text-center">
+                    <button type="button" onClick={handleDevLogin} className="text-[10px] text-slate-600 hover:text-white transition-colors">
+                     Desenvolvedor (Offline/Local)
+                    </button>
+                </div>
+            )}
           </form>
         </div>
       </div>
@@ -330,7 +340,7 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
         <p className="text-slate-400 text-lg max-w-2xl">Gestão centralizada de ativos e processos.</p>
       </div>
     </div>
-    <div className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
         <div className="flex-1">
             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Ferramentas</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -361,7 +371,7 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
 }
 
 // --- ADMIN PANEL ---
-function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig }) {
+function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig, systemSettings }) {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
@@ -393,6 +403,9 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   // Changelog Management
   const [newLog, setNewLog] = useState({ version: '', date: '', title: '', content: '' });
   const [editingLogId, setEditingLogId] = useState(null);
+  
+  // Config Settings
+  const [configDevBypass, setConfigDevBypass] = useState(systemSettings?.devBypass ?? true);
 
   // Editor Tags State
   const [editorEditingTagId, setEditorEditingTagId] = useState(null);
@@ -560,6 +573,11 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
   const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
   
+  const handleSaveConfig = async () => {
+      await setDoc(getDocRef('settings', 'config'), { devBypass: configDevBypass }, { merge: true });
+      alert('Configurações salvas.');
+  };
+
   const onDragStart = (e, sessionId, tagIndex) => e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
   const onDragOver = (e) => e.preventDefault();
   const onDrop = async (e, targetSessionId) => {
@@ -579,10 +597,10 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
   return (
     <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print hidden md:flex">
+      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100"><h2 className="text-xl font-black text-[#002233]">Administração</h2></div>
         <nav className="flex-1 p-4 space-y-2">
-            {['templates', 'tags', 'tools', 'users', 'changelog'].map(tab => (
+            {['templates', 'tags', 'tools', 'users', 'changelog', 'config'].map(tab => (
                 <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
             ))}
         </nav>
@@ -607,8 +625,8 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
             )}
             
             {activeTab === 'tags' && (
-                <div className="flex flex-col md:flex-row gap-6 items-start h-full">
-                     <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-4 max-h-full overflow-y-auto custom-scroll">
+                <div className="flex gap-6 items-start h-full">
+                     <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
                         <div className="mb-6 border-b pb-4">
                             <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
                             <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
@@ -632,7 +650,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                             <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
-                     <div className="flex-1 space-y-4 w-full">
+                     <div className="flex-1 space-y-4">
                          {(tagsConfig[tagModuleFilter]?.sessions || []).map((session) => (
                              <div key={session.id} className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} onDragOver={onDragOver} onDrop={(e) => onDrop(e, session.id)}>
                                  <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
@@ -693,6 +711,22 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                          <div className="grid grid-cols-3 gap-4 mb-4"><input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/><input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/><input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/></div><textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-20 mb-4"/><button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded text-sm font-bold">{editingLogId ? 'Atualizar' : 'Adicionar'}</button></div>
                      <div className="space-y-3">{changelog.map(log => (<div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start"><div><div className="flex items-center gap-3 mb-1"><span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400 font-bold uppercase">{log.date}</span></div><h4 className="font-bold text-slate-700">{log.title}</h4><p className="text-sm text-slate-500 mt-1">{log.content}</p></div><div className="flex gap-3"><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs font-bold hover:underline">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs font-bold hover:underline">Excluir</button></div></div>))}</div>
                  </div>
+            )}
+
+            {activeTab === 'config' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg text-slate-700 mb-4">Configurações Gerais</h3>
+                        <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-slate-50">
+                            <input type="checkbox" checked={configDevBypass} onChange={(e) => setConfigDevBypass(e.target.checked)} className="w-5 h-5 rounded text-[#00DBFF] focus:ring-[#00DBFF]" />
+                            <div>
+                                <span className="block font-bold text-slate-800">Ativar Login de Desenvolvedor (Bypass)</span>
+                                <span className="text-xs text-slate-500">Permite acesso local sem autenticação real (útil para testes offline).</span>
+                            </div>
+                        </label>
+                        <div className="mt-4"><button onClick={handleSaveConfig} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">Salvar Configurações</button></div>
+                    </div>
+                </div>
             )}
         </div>
       </div>
@@ -879,10 +913,9 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
 // ============================================================================
 // 7. DASHBOARD
 // ============================================================================
-function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig }) {
+function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig, systemSettings }) {
   const [activePage, setActivePage] = useState('Home');
   const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
   const hasAccess = (toolKey) => {
       const tool = toolsConfig[toolKey];
@@ -891,23 +924,16 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
   };
 
   return (
-    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden relative">
+    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden">
       <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
-      
-      {/* Mobile Menu Button */}
-      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden absolute top-4 left-4 z-50 text-white bg-[#002233] p-2 rounded">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-      </button>
-
-      {/* Sidebar */}
-      <aside className={`fixed md:relative w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-40 shadow-xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className="w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-50 shadow-xl no-print">
         <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
           <img src="https://i.imgur.com/dFv3pQh.png" alt="Logo" className="w-10 mb-2" />
           <span className="font-bold text-sm tracking-widest text-center mt-2">CORE | Centro de Otimização</span>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
           <div className="px-3 space-y-1">
-            <button onClick={() => { setActivePage('Home'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+            <button onClick={() => setActivePage('Home')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
             </button>
             <div>
@@ -920,7 +946,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
                    {sortTools(toolsConfig).map(([key, tool]) => (
                         <button 
                             key={key}
-                            onClick={() => { hasAccess(key) && setActivePage(key); setMobileMenuOpen(false); }} 
+                            onClick={() => hasAccess(key) && setActivePage(key)} 
                             className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === key ? 'bg-white/10 text-[#00DBFF]' : hasAccess(key) ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
                         >
                             {tool.label}
@@ -931,7 +957,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               )}
             </div>
             {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <button onClick={() => setActivePage('Admin')} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Administração
               </button>
@@ -944,13 +970,9 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
             <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
         </div>
       </aside>
-      
-      {/* Overlay para mobile */}
-      {mobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>}
-
       <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
         {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
-        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} />}
         {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} />}
       </main>
     </div>
@@ -964,10 +986,11 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState({});
-  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS);
+  const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); 
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
+  const [systemSettings, setSystemSettings] = useState({ devBypass: true }); // Default true
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
@@ -1004,6 +1027,7 @@ export default function App() {
            snap.forEach(doc => { 
                if(doc.id === 'delimiters') setDelimiters(doc.data());
                if(doc.id === 'tools') setToolsConfig(doc.data()); 
+               if(doc.id === 'config') setSystemSettings(doc.data());
            });
            if(snap.empty) {
                setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
@@ -1044,5 +1068,5 @@ export default function App() {
     }
   }, []);
 
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} />;
+  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
 }
