@@ -31,7 +31,7 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Inicialização segura (Singleton)
+// Inicialização segura
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,15 +40,15 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
-function sortTools(config) {
+// Helper para ordenar ferramentas
+const sortTools = (config) => {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
         return a.label.localeCompare(b.label);
     });
-}
+};
 
 // ============================================================================
 // 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
@@ -67,7 +67,6 @@ function SafePreview({ html }) {
         
         // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
-        // Permite scale um pouco maior para telas grandes
         const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
@@ -75,11 +74,9 @@ function SafePreview({ html }) {
         
         // Altura do conteúdo
         const contentHeight = shadowRootRef.current.body.scrollHeight;
-        // Altura mínima A4 (1123px) ou conteúdo se for maior
         const displayHeight = Math.max(contentHeight, 1123); 
         
         containerRef.current.style.height = `${displayHeight}px`;
-        // Ajusta wrapper com margem extra no final para scroll
         wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
@@ -87,7 +84,6 @@ function SafePreview({ html }) {
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
-    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -160,9 +156,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
-  { id: '2', version: '3.6', date: '2024-02-08', title: 'Ordenação e Preview', content: 'Geradores ordenados por status/nome e correção no Live Preview para mostrar todo conteúdo.' },
-  { id: '3', version: '3.0', date: '2024-02-04', title: 'Refatoração Completa', content: 'Nova arquitetura do sistema.' },
+  { id: '1', version: '4.2', date: '2024-02-14', title: 'Correção de Conflitos', content: 'Remoção de scripts externos conflitantes para estabilidade do sistema.' },
+  { id: '2', version: '4.1', date: '2024-02-13', title: 'Checkbox Multi-Select', content: 'Adicionada funcionalidade de checkbox com múltiplas opções para tags.' },
+  { id: '3', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -377,11 +373,12 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   
   // Tag Management
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
-  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '' });
+  const [tagForm, setTagForm] = useState({ id: '', label: '', type: 'text', sessionId: '', options: [] });
   const [editingTag, setEditingTag] = useState(null);
   const [editingTagId, setEditingTagId] = useState(null);
   const [newSessionName, setNewSessionName] = useState('');
   const [tempDelimiters, setTempDelimiters] = useState(delimiters);
+  const [newOption, setNewOption] = useState('');
 
   // Tools Management
   const [showToolModal, setShowToolModal] = useState(false);
@@ -487,7 +484,12 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       
       if(sessionIndex === -1) return false;
 
-      const newTag = { id: cleanId, label: label, type: type };
+      const newTag = { 
+          id: cleanId, 
+          label: label, 
+          type: type,
+          options: type === 'checkbox' ? (tagForm.options || []) : [] 
+      };
 
       if (isEdit && originalId) {
           for (let s of sessions) {
@@ -509,7 +511,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       e.preventDefault();
       const success = await saveTag(tagForm.id, tagForm.label, tagForm.type, tagModuleFilter, !!editingTag, editingTag?.tagData.id, tagForm.sessionId);
       if(success) {
-        setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId });
+        setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId, options: [] });
         setEditingTag(null);
         setEditingTagId(null);
         alert('Tag salva!');
@@ -526,7 +528,17 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   const handleEditTagClick = (tag, sessionId, idx) => {
       setEditingTag({ sessionId, tagIndex: idx, tagData: tag });
       setEditingTagId(tag.id);
-      setTagForm({ ...tag, sessionId });
+      setTagForm({ ...tag, sessionId, options: tag.options || [] });
+  };
+  
+  const handleAddOption = () => {
+    if (!newOption.trim()) return;
+    setTagForm(prev => ({ ...prev, options: [...(prev.options || []), newOption.trim()] }));
+    setNewOption('');
+  };
+  
+  const handleRemoveOption = (index) => {
+    setTagForm(prev => ({ ...prev, options: prev.options.filter((_, i) => i !== index) }));
   };
 
   const handleSaveTagInEditor = async (e) => {
@@ -646,8 +658,39 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                             </select>
                             <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID (ex: NOME)" required />
                             <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo" required />
-                            <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm"><option value="text">Texto</option><option value="date">Data</option><option value="email">E-mail</option></select>
-                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: ''}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
+                            <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm">
+                                <option value="text">Texto</option>
+                                <option value="date">Data</option>
+                                <option value="email">E-mail</option>
+                                <option value="checkbox">Caixa de Seleção (Múltipla)</option>
+                            </select>
+
+                            {/* Checkbox Options Manager */}
+                            {tagForm.type === 'checkbox' && (
+                                <div className="bg-slate-100 p-3 rounded border border-slate-200">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Opções de Checkbox</label>
+                                    <div className="flex gap-2 mb-2">
+                                        <input 
+                                            className="flex-1 border p-1 text-sm rounded outline-none focus:border-[#00DBFF]" 
+                                            placeholder="Nova opção (ex: Sim/Não)" 
+                                            value={newOption} 
+                                            onChange={(e) => setNewOption(e.target.value)}
+                                            onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddOption(); } }}
+                                        />
+                                        <button type="button" onClick={handleAddOption} className="bg-blue-500 text-white px-3 rounded text-sm font-bold">+</button>
+                                    </div>
+                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                        {(tagForm.options || []).map((opt, idx) => (
+                                            <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border text-xs">
+                                                <span>{opt}</span>
+                                                <button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 font-bold hover:text-red-700">x</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: '', options: []}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
                         </form>
                      </div>
                      <div className="flex-1 space-y-4">
@@ -660,7 +703,10 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                  <div className="divide-y divide-slate-100 min-h-[40px]">
                                      {session.tags.map((tag, idx) => (
                                          <div key={idx} draggable onDragStart={(e) => onDragStart(e, session.id, idx)} className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group">
-                                             <div><span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span><span className="block text-xs text-slate-600">{tag.label}</span></div>
+                                             <div>
+                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                                                 <span className="block text-xs text-slate-600">{tag.label} {tag.type === 'checkbox' && '(Checkbox)'}</span>
+                                             </div>
                                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditTagClick(tag, session.id, idx)} className="text-blue-500 text-xs font-bold">Editar</button><button onClick={() => handleDeleteTag(session.id, idx)} className="text-red-500 text-xs font-bold">Excluir</button></div>
                                          </div>
                                      ))}
@@ -843,7 +889,11 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
     const initialData = { ...formData };
     activeSessions.forEach(session => {
         session.tags.forEach(tag => {
-            if (initialData[tag.id] === undefined) initialData[tag.id] = '';
+            if (initialData[tag.id] === undefined) {
+                // Se for checkbox, inicializa como array vazio
+                if (tag.type === 'checkbox') initialData[tag.id] = [];
+                else initialData[tag.id] = '';
+            }
             if (tag.id === 'DATA' && !initialData[tag.id]) initialData[tag.id] = new Date().toISOString().split('T')[0];
         });
     });
@@ -852,12 +902,30 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
 
   const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
 
+  const handleCheckboxChange = (tagId, option) => {
+      setFormData(prev => {
+          const current = prev[tagId] || [];
+          if (current.includes(option)) {
+              return { ...prev, [tagId]: current.filter(item => item !== option) };
+          } else {
+              return { ...prev, [tagId]: [...current, option] };
+          }
+      });
+  };
+
   const renderDocument = () => {
       let html = template?.content || DEFAULT_HTML_TEMPLATE;
       sessions.forEach(session => {
           session.tags.forEach(tag => {
-              let val = formData[tag.id] || '';
-              if(tag.id === 'DATA' && val) val = val.split('-').reverse().join('/');
+              let val = formData[tag.id];
+              
+              if (Array.isArray(val)) {
+                  val = val.join(', '); // Formata array como string para exibição
+              }
+              
+              val = val || '';
+
+              if(tag.id === 'DATA' && val && !Array.isArray(val) && val.includes('-')) val = val.split('-').reverse().join('/');
               const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
               html = html.split(tagPattern).join(val);
           });
@@ -893,7 +961,30 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
                         {session.tags.map(tag => (
                             <div key={tag.id}>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
-                                <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag.id, e.target.value)} />
+                                
+                                {tag.type === 'checkbox' ? (
+                                    <div className="space-y-2 bg-slate-50 p-2 rounded border border-slate-200">
+                                        {(tag.options || []).map((opt, idx) => (
+                                            <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-100 p-1 rounded">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={(formData[tag.id] || []).includes(opt)}
+                                                    onChange={() => handleCheckboxChange(tag.id, opt)}
+                                                    className="rounded text-[#00DBFF] focus:ring-[#00DBFF]"
+                                                />
+                                                <span className="text-slate-700">{opt}</span>
+                                            </label>
+                                        ))}
+                                        {(tag.options || []).length === 0 && <span className="text-xs text-red-400">Sem opções configuradas.</span>}
+                                    </div>
+                                ) : (
+                                    <input 
+                                        type={tag.type} 
+                                        className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" 
+                                        value={formData[tag.id] || ''} 
+                                        onChange={e => handleChange(tag.id, e.target.value)} 
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>
@@ -984,7 +1075,21 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
 // ============================================================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  
+  // 1. Initial State from LocalStorage (Sync)
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('core_users');
+    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  });
+  
+  // Restore user session IMMEDIATELY on mount
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+  }, []);
+
   const [templates, setTemplates] = useState({});
   const [tagsConfig, setTagsConfig] = useState(DEFAULT_TAGS_WITH_SESSIONS); 
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
@@ -993,8 +1098,22 @@ export default function App() {
   const [systemSettings, setSystemSettings] = useState({ devBypass: true }); // Default true
   const [dbReady, setDbReady] = useState(false);
 
+  // 2. Persist Login
   useEffect(() => {
-      signInAnonymously(auth).then(() => { setDbReady(true); }).catch(console.error);
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
+
+  // 3. Firebase Connection
+  useEffect(() => {
+      const unsubAuth = onAuthStateChanged(auth, (authUser) => {
+          if (authUser) {
+              setDbReady(true);
+          } else {
+              signInAnonymously(auth).catch(console.error);
+          }
+      });
+      return () => unsubAuth();
   }, []);
 
   useEffect(() => {
@@ -1040,20 +1159,6 @@ export default function App() {
       }, () => {});
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
-
-  // RESTAURA SESSÃO
-  useEffect(() => {
-    const session = localStorage.getItem('core_session_user');
-    if (session) {
-      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
-    }
-  }, []);
-
-  // PERSISTE SESSÃO
-  useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
-  }, [user]);
 
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
