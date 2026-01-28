@@ -41,14 +41,14 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
-const sortTools = (config) => {
+function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
         return a.label.localeCompare(b.label);
     });
-};
+}
 
 // ============================================================================
 // 2. COMPONENTE SAFE PREVIEW (A4 DINÂMICO)
@@ -85,7 +85,6 @@ function SafePreview({ html }) {
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
-    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -158,7 +157,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.2', date: '2024-02-14', title: 'Correção de Scripts', content: 'Remoção de scripts conflitantes para estabilidade do sistema.' },
+  { id: '1', version: '4.3', date: '2024-02-15', title: 'Drag & Drop Corrigido', content: 'Melhoria na movimentação de tags e atualização do favicon.' },
   { id: '2', version: '4.1', date: '2024-02-13', title: 'Checkbox Multi-Select', content: 'Adicionada funcionalidade de checkbox com múltiplas opções para tags.' },
   { id: '3', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
 ];
@@ -592,19 +591,48 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       alert('Configurações salvas.');
   };
 
-  const onDragStart = (e, sessionId, tagIndex) => e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
-  const onDragOver = (e) => e.preventDefault();
-  const onDrop = async (e, targetSessionId) => {
+  // Improved Drag & Drop
+  const onDragStart = (e, sessionId, tagIndex) => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
+      e.dataTransfer.effectAllowed = 'move';
+  };
+  
+  const onDragOver = (e) => {
+      e.preventDefault(); 
+      e.dataTransfer.dropEffect = 'move'; 
+  };
+  
+  const handleDrop = async (e, targetSessionId, targetIndex = null) => {
       e.preventDefault();
-      const data = JSON.parse(e.dataTransfer.getData("text/plain"));
-      if (data.module !== tagModuleFilter || data.sessionId === targetSessionId) return;
+      e.stopPropagation();
+      
+      const dataStr = e.dataTransfer.getData("text/plain");
+      if(!dataStr) return;
+
+      const data = JSON.parse(dataStr);
+      if (data.module !== tagModuleFilter) return;
+
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
-      const sourceSession = sessions.find(s => s.id === data.sessionId);
-      const targetSession = sessions.find(s => s.id === targetSessionId);
-      if (sourceSession && targetSession) {
+      
+      const sourceSessionIndex = sessions.findIndex(s => s.id === data.sessionId);
+      const targetSessionIndex = sessions.findIndex(s => s.id === targetSessionId);
+
+      if (sourceSessionIndex !== -1 && targetSessionIndex !== -1) {
+          const sourceSession = sessions[sourceSessionIndex];
+          const targetSession = sessions[targetSessionIndex];
+          
+          // Remove from original
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
-          targetSession.tags.push(movedTag);
+          
+          // Insert into destination
+          if (targetIndex !== null) {
+               targetSession.tags.splice(targetIndex, 0, movedTag);
+          } else {
+               // If dropped on session container (no targetIndex), push to end
+               targetSession.tags.push(movedTag);
+          }
+          
           await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       }
   };
@@ -710,7 +738,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                  <div className="divide-y divide-slate-100 min-h-[40px]">
                                      {session.tags.map((tag, idx) => (
                                          <div 
-                                            key={tag.id} // Alterado de idx para tag.id para evitar problemas de re-render
+                                            key={tag.id} 
                                             draggable 
                                             onDragStart={(e) => onDragStart(e, session.id, idx)} 
                                             onDragOver={onDragOver}
