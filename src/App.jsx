@@ -31,7 +31,7 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Inicialização segura
+// Inicialização segura (Singleton)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,7 +40,7 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
 const sortTools = (config) => {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
@@ -74,9 +74,10 @@ function SafePreview({ html }) {
         
         // Altura do conteúdo
         const contentHeight = shadowRootRef.current.body.scrollHeight;
-        const displayHeight = Math.max(contentHeight, 1123); 
+        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
         
         containerRef.current.style.height = `${displayHeight}px`;
+        // Ajusta wrapper com margem extra no final para scroll
         wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
@@ -84,6 +85,7 @@ function SafePreview({ html }) {
     const observer = new ResizeObserver(updateScale);
     if (wrapperRef.current) observer.observe(wrapperRef.current);
     
+    // Updates sequenciais para garantir carregamento de imagens/fontes
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
     setTimeout(updateScale, 1000);
@@ -156,7 +158,7 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.2', date: '2024-02-14', title: 'Correção de Conflitos', content: 'Remoção de scripts externos conflitantes para estabilidade do sistema.' },
+  { id: '1', version: '4.2', date: '2024-02-14', title: 'Correção de Scripts', content: 'Remoção de scripts conflitantes para estabilidade do sistema.' },
   { id: '2', version: '4.1', date: '2024-02-13', title: 'Checkbox Multi-Select', content: 'Adicionada funcionalidade de checkbox com múltiplas opções para tags.' },
   { id: '3', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
 ];
@@ -695,14 +697,26 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                      </div>
                      <div className="flex-1 space-y-4">
                          {(tagsConfig[tagModuleFilter]?.sessions || []).map((session) => (
-                             <div key={session.id} className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} onDragOver={onDragOver} onDrop={(e) => onDrop(e, session.id)}>
+                             <div 
+                                key={session.id} 
+                                className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} 
+                                onDragOver={onDragOver} 
+                                onDrop={(e) => handleDrop(e, session.id)} // Drop no container (append)
+                            >
                                  <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
                                      <div className="flex items-center gap-2"><button onClick={() => toggleSessionActive(session.id)} title="Ativar/Desativar" className={`w-3 h-3 rounded-full ${session.active ? 'bg-green-500' : 'bg-red-500'}`}></button><h4 className="font-bold text-sm text-slate-700">{session.title}</h4></div>
                                      <div className="flex gap-2"><button onClick={() => handleRenameSession(session.id)} className="text-blue-500 text-xs hover:underline">Renomear</button><button onClick={() => handleDeleteSession(session.id)} className="text-red-400 text-xs hover:underline">Excluir</button></div>
                                  </div>
                                  <div className="divide-y divide-slate-100 min-h-[40px]">
                                      {session.tags.map((tag, idx) => (
-                                         <div key={idx} draggable onDragStart={(e) => onDragStart(e, session.id, idx)} className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group">
+                                         <div 
+                                            key={idx} 
+                                            draggable 
+                                            onDragStart={(e) => onDragStart(e, session.id, idx)} 
+                                            onDragOver={onDragOver}
+                                            onDrop={(e) => handleDrop(e, session.id, idx)} // Drop na tag (insert)
+                                            className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors"
+                                        >
                                              <div>
                                                  <span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
                                                  <span className="block text-xs text-slate-600">{tag.label} {tag.type === 'checkbox' && '(Checkbox)'}</span>
@@ -1160,6 +1174,30 @@ export default function App() {
       return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); }
   }, [dbReady]);
 
+  // RESTAURA SESSÃO
+  useEffect(() => {
+    const session = localStorage.getItem('core_session_user');
+    if (session) {
+      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
+    }
+    
+    // Favicon e Título
+    document.title = "CORE | Sistema";
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = "https://i.imgur.com/dFv3pQh.png"; // Ícone TOTVS Core
+  }, []);
+
+  // PERSISTE SESSÃO
+  useEffect(() => {
+    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
+    else localStorage.removeItem('core_session_user');
+  }, [user]);
+
   useEffect(() => {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
       const s = document.createElement('script'); s.src = "https://cdn.tailwindcss.com"; document.head.appendChild(s); 
@@ -1167,10 +1205,6 @@ export default function App() {
     const style = document.createElement('style');
     style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
     document.head.appendChild(style);
-    if (!document.querySelector('script[src*="mammoth"]')) {
-       const s = document.createElement('script'); s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js";
-       document.head.appendChild(s);
-    }
   }, []);
 
   return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
