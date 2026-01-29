@@ -1,16 +1,22 @@
-# React + Vite
+# 📌 PROJETO CORE
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PROJETO CORE é um conjunto de ferramentas desenvolvido para otimizar, padronizar e acelerar o trabalho da equipe de Field Service, centralizando recursos essenciais em uma única aplicação.
 
-Currently, two official plugins are available:
+🚀 Objetivo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Fornecer uma plataforma única com utilitários que apoiam o dia a dia do Field Service, como:
 
-## React Compiler
+Agilidade no atendimento
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Padronização de processos
 
-## Expanding the ESLint configuration
+Redução de erros operacionais
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Acesso rápido a informações técnicas
+
+Automatização de rotinas comuns
+
+## 📄 Licença
+
+Uso interno.
+Este projeto é destinado exclusivamente ao uso da equipe e não deve ser distribuído externamente sem autorização.
