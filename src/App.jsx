@@ -157,8 +157,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.3', date: '2024-02-15', title: 'Integração CEP', content: 'Adicionada busca automática de CEP e configuração de mapeamento de tags.' },
+  { id: '1', version: '4.3', date: '2024-02-15', title: 'Integração CEP Avançada', content: 'Edição de mapeamentos de CEP e busca automática aprimorada.' },
   { id: '2', version: '4.2', date: '2024-02-14', title: 'Drag & Drop Corrigido', content: 'Melhoria na movimentação de tags.' },
+  { id: '3', version: '4.1', date: '2024-02-13', title: 'Checkbox Multi-Select', content: 'Adicionada funcionalidade de checkbox com múltiplas opções para tags.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -388,6 +389,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
   // CEP Integration Management
   const [cepMapForm, setCepMapForm] = useState({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' });
+  const [editingCepMapId, setEditingCepMapId] = useState(null);
 
   // Template Editing
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -595,18 +597,33 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
   // CEP Mapping Handlers
   const handleSaveCepMapping = async () => {
-      // Adiciona novo mapeamento ao array existente (ou cria novo)
       const currentMappings = cepMappings || [];
-      const newMapping = {
-          id: Date.now().toString(),
-          ...cepMapForm
-      };
+      let updatedMappings;
+
+      if (editingCepMapId) {
+          updatedMappings = currentMappings.map(m => 
+              m.id === editingCepMapId ? { ...m, ...cepMapForm } : m
+          );
+          setEditingCepMapId(null);
+      } else {
+          const newMapping = { id: Date.now().toString(), ...cepMapForm };
+          updatedMappings = [...currentMappings, newMapping];
+      }
       
-      const updatedMappings = [...currentMappings, newMapping];
       await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings });
-      
       setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' });
       alert('Integração salva!');
+  };
+
+  const handleEditCepMapping = (mapping) => {
+      setEditingCepMapId(mapping.id);
+      setCepMapForm({
+          triggerTag: mapping.triggerTag,
+          streetTag: mapping.streetTag,
+          districtTag: mapping.districtTag,
+          cityTag: mapping.cityTag,
+          stateTag: mapping.stateTag
+      });
   };
 
   const handleDeleteCepMapping = async (mapId) => {
@@ -748,7 +765,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                             className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors active:opacity-50"
                                         >
                                              <div>
-                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{tempDelimiters.prefix}{tag.id}{tempDelimiters.suffix}</span>
+                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
                                                  <span className="block text-xs text-slate-600">{tag.label} {tag.type === 'checkbox' && '(Checkbox)'}</span>
                                              </div>
                                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditTagClick(tag, session.id, idx)} className="text-blue-500 text-xs font-bold">Editar</button><button onClick={() => handleDeleteTag(session.id, idx)} className="text-red-500 text-xs font-bold">Excluir</button></div>
@@ -764,7 +781,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
             {activeTab === 'integrations' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-lg text-slate-700 mb-4">Busca Automática de Endereço (ViaCEP)</h3>
+                        <h3 className="font-bold text-lg text-slate-700 mb-4">{editingCepMapId ? 'Editar Integração' : 'Busca Automática de Endereço (ViaCEP)'}</h3>
                         <p className="text-xs text-slate-500 mb-4">Configure quais tags devem ser preenchidas automaticamente quando um CEP for digitado. Use os IDs das tags (ex: RUA_DESTINO).</p>
                         
                         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -774,7 +791,10 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                             <div><label className="block text-xs font-bold text-slate-500">Tag de Cidade</label><input value={cepMapForm.cityTag} onChange={e => setCepMapForm({...cepMapForm, cityTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CIDADE_DESTINO"/></div>
                             <div><label className="block text-xs font-bold text-slate-500">Tag de Estado (UF)</label><input value={cepMapForm.stateTag} onChange={e => setCepMapForm({...cepMapForm, stateTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: UF_DESTINO"/></div>
                         </div>
-                        <button onClick={handleSaveCepMapping} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">Adicionar Regra</button>
+                        <div className="flex gap-2">
+                             <button onClick={handleSaveCepMapping} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">{editingCepMapId ? 'Atualizar Regra' : 'Adicionar Regra'}</button>
+                             {editingCepMapId && <button onClick={() => { setEditingCepMapId(null); setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' }) }} className="bg-slate-200 px-4 py-2 rounded font-bold text-sm">Cancelar</button>}
+                        </div>
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -782,12 +802,15 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                              <thead className="bg-slate-50 border-b"><tr><th className="p-3">Gatilho (CEP)</th><th className="p-3">Rua</th><th className="p-3">Bairro</th><th className="p-3">Cidade/UF</th><th className="p-3 text-right">Ação</th></tr></thead>
                              <tbody>
                                  {(cepMappings || []).map(map => (
-                                     <tr key={map.id} className="border-b">
+                                     <tr key={map.id} className="border-b hover:bg-slate-50">
                                          <td className="p-3 font-bold">{map.triggerTag}</td>
                                          <td className="p-3 text-slate-500">{map.streetTag || '-'}</td>
                                          <td className="p-3 text-slate-500">{map.districtTag || '-'}</td>
                                          <td className="p-3 text-slate-500">{map.cityTag}/{map.stateTag}</td>
-                                         <td className="p-3 text-right"><button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-bold">X</button></td>
+                                         <td className="p-3 text-right">
+                                             <button onClick={() => handleEditCepMapping(map)} className="text-blue-500 font-bold mr-3">Editar</button>
+                                             <button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-bold">X</button>
+                                         </td>
                                      </tr>
                                  ))}
                                  {(cepMappings || []).length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">Nenhuma regra configurada.</td></tr>}
