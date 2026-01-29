@@ -157,9 +157,8 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.3', date: '2024-02-15', title: 'Drag & Drop Corrigido', content: 'Melhoria na movimentação de tags e atualização do favicon.' },
-  { id: '2', version: '4.1', date: '2024-02-13', title: 'Checkbox Multi-Select', content: 'Adicionada funcionalidade de checkbox com múltiplas opções para tags.' },
-  { id: '3', version: '4.0', date: '2024-02-12', title: 'Estabilidade', content: 'Correção estrutural de componentes e otimização do Live Preview.' },
+  { id: '1', version: '4.3', date: '2024-02-15', title: 'Integração CEP', content: 'Adicionada busca automática de CEP e configuração de mapeamento de tags.' },
+  { id: '2', version: '4.2', date: '2024-02-14', title: 'Drag & Drop Corrigido', content: 'Melhoria na movimentação de tags.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -368,7 +367,7 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
 }
 
 // --- ADMIN PANEL ---
-function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig, systemSettings }) {
+function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig, systemSettings, cepMappings }) {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
   
@@ -386,6 +385,9 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   const [toolForm, setToolForm] = useState({ id: '', label: '', desc: '', icon: '', active: true });
   const [isEditingTool, setIsEditingTool] = useState(false);
   const [editingToolKey, setEditingToolKey] = useState(null);
+
+  // CEP Integration Management
+  const [cepMapForm, setCepMapForm] = useState({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' });
 
   // Template Editing
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -591,48 +593,48 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       alert('Configurações salvas.');
   };
 
-  // Improved Drag & Drop
+  // CEP Mapping Handlers
+  const handleSaveCepMapping = async () => {
+      // Adiciona novo mapeamento ao array existente (ou cria novo)
+      const currentMappings = cepMappings || [];
+      const newMapping = {
+          id: Date.now().toString(),
+          ...cepMapForm
+      };
+      
+      const updatedMappings = [...currentMappings, newMapping];
+      await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings });
+      
+      setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' });
+      alert('Integração salva!');
+  };
+
+  const handleDeleteCepMapping = async (mapId) => {
+      if(!window.confirm('Remover esta integração?')) return;
+      const updatedMappings = (cepMappings || []).filter(m => m.id !== mapId);
+      await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings });
+  };
+
+  // Drag Drop
   const onDragStart = (e, sessionId, tagIndex) => {
       e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: tagModuleFilter }));
       e.dataTransfer.effectAllowed = 'move';
   };
-  
-  const onDragOver = (e) => {
-      e.preventDefault(); 
-      e.dataTransfer.dropEffect = 'move'; 
-  };
-  
+  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
   const handleDrop = async (e, targetSessionId, targetIndex = null) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const dataStr = e.dataTransfer.getData("text/plain");
-      if(!dataStr) return;
-
-      const data = JSON.parse(dataStr);
-      if (data.module !== tagModuleFilter) return;
-
+      e.preventDefault(); e.stopPropagation();
+      const dataStr = e.dataTransfer.getData("text/plain"); if(!dataStr) return;
+      const data = JSON.parse(dataStr); if (data.module !== tagModuleFilter) return;
       const currentConfig = tagsConfig[tagModuleFilter];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
-      
       const sourceSessionIndex = sessions.findIndex(s => s.id === data.sessionId);
       const targetSessionIndex = sessions.findIndex(s => s.id === targetSessionId);
-
       if (sourceSessionIndex !== -1 && targetSessionIndex !== -1) {
           const sourceSession = sessions[sourceSessionIndex];
           const targetSession = sessions[targetSessionIndex];
-          
-          // Remove from original
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
-          
-          // Insert into destination
-          if (targetIndex !== null) {
-               targetSession.tags.splice(targetIndex, 0, movedTag);
-          } else {
-               // If dropped on session container (no targetIndex), push to end
-               targetSession.tags.push(movedTag);
-          }
-          
+          if (targetIndex !== null) targetSession.tags.splice(targetIndex, 0, movedTag);
+          else targetSession.tags.push(movedTag);
           await setDoc(getDocRef('tags', tagModuleFilter), { ...currentConfig, sessions });
       }
   };
@@ -642,7 +644,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
         <div className="p-6 border-b border-slate-100"><h2 className="text-xl font-black text-[#002233]">Administração</h2></div>
         <nav className="flex-1 p-4 space-y-2">
-            {['templates', 'tags', 'tools', 'users', 'changelog', 'config'].map(tab => (
+            {['templates', 'tags', 'tools', 'integrations', 'users', 'changelog', 'config'].map(tab => (
                 <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
             ))}
         </nav>
@@ -746,7 +748,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                             className="p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors active:opacity-50"
                                         >
                                              <div>
-                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{tempDelimiters.prefix}{tag.id}{tempDelimiters.suffix}</span>
                                                  <span className="block text-xs text-slate-600">{tag.label} {tag.type === 'checkbox' && '(Checkbox)'}</span>
                                              </div>
                                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditTagClick(tag, session.id, idx)} className="text-blue-500 text-xs font-bold">Editar</button><button onClick={() => handleDeleteTag(session.id, idx)} className="text-red-500 text-xs font-bold">Excluir</button></div>
@@ -756,6 +758,42 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                              </div>
                          ))}
                      </div>
+                </div>
+            )}
+
+            {activeTab === 'integrations' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg text-slate-700 mb-4">Busca Automática de Endereço (ViaCEP)</h3>
+                        <p className="text-xs text-slate-500 mb-4">Configure quais tags devem ser preenchidas automaticamente quando um CEP for digitado. Use os IDs das tags (ex: RUA_DESTINO).</p>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Gatilho (CEP)</label><input value={cepMapForm.triggerTag} onChange={e => setCepMapForm({...cepMapForm, triggerTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CEP_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Rua (Logradouro)</label><input value={cepMapForm.streetTag} onChange={e => setCepMapForm({...cepMapForm, streetTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: RUA_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Bairro</label><input value={cepMapForm.districtTag} onChange={e => setCepMapForm({...cepMapForm, districtTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: BAIRRO_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Cidade</label><input value={cepMapForm.cityTag} onChange={e => setCepMapForm({...cepMapForm, cityTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CIDADE_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Estado (UF)</label><input value={cepMapForm.stateTag} onChange={e => setCepMapForm({...cepMapForm, stateTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: UF_DESTINO"/></div>
+                        </div>
+                        <button onClick={handleSaveCepMapping} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">Adicionar Regra</button>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                         <table className="w-full text-sm text-left">
+                             <thead className="bg-slate-50 border-b"><tr><th className="p-3">Gatilho (CEP)</th><th className="p-3">Rua</th><th className="p-3">Bairro</th><th className="p-3">Cidade/UF</th><th className="p-3 text-right">Ação</th></tr></thead>
+                             <tbody>
+                                 {(cepMappings || []).map(map => (
+                                     <tr key={map.id} className="border-b">
+                                         <td className="p-3 font-bold">{map.triggerTag}</td>
+                                         <td className="p-3 text-slate-500">{map.streetTag || '-'}</td>
+                                         <td className="p-3 text-slate-500">{map.districtTag || '-'}</td>
+                                         <td className="p-3 text-slate-500">{map.cityTag}/{map.stateTag}</td>
+                                         <td className="p-3 text-right"><button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-bold">X</button></td>
+                                     </tr>
+                                 ))}
+                                 {(cepMappings || []).length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">Nenhuma regra configurada.</td></tr>}
+                             </tbody>
+                         </table>
+                    </div>
                 </div>
             )}
             
@@ -920,7 +958,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 // ============================================================================
 // 6. GERADOR DINÂMICO
 // ============================================================================
-function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
+function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappings }) {
   const [formData, setFormData] = useState({});
   const [sessions, setSessions] = useState([]);
 
@@ -942,7 +980,31 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
     setFormData(initialData);
   }, [tagsConfig, moduleId]);
 
-  const handleChange = (tag, value) => setFormData(prev => ({ ...prev, [tag]: value }));
+  const handleChange = async (tag, value) => {
+    setFormData(prev => ({ ...prev, [tag.id]: value }));
+    
+    // Check for CEP trigger
+    if (value.replace(/\D/g, '').length === 8 && cepMappings) {
+        const mapping = cepMappings.find(m => m.triggerTag === tag.id);
+        if (mapping) {
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${value}/json/`);
+                const data = await response.json();
+                if (!data.erro) {
+                    setFormData(prev => ({
+                        ...prev,
+                        [mapping.streetTag]: data.logradouro || '',
+                        [mapping.districtTag]: data.bairro || '',
+                        [mapping.cityTag]: data.localidade || '',
+                        [mapping.stateTag]: data.uf || ''
+                    }));
+                }
+            } catch (error) {
+                console.error("Erro ao buscar CEP:", error);
+            }
+        }
+    }
+  };
 
   const handleCheckboxChange = (tagId, option) => {
       setFormData(prev => {
@@ -1024,7 +1086,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
                                         type={tag.type} 
                                         className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" 
                                         value={formData[tag.id] || ''} 
-                                        onChange={e => handleChange(tag.id, e.target.value)} 
+                                        onChange={e => handleChange(tag, e.target.value)} 
                                     />
                                 )}
                             </div>
@@ -1046,7 +1108,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId }) {
 // ============================================================================
 // 7. DASHBOARD
 // ============================================================================
-function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig, systemSettings }) {
+function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig, systemSettings, cepMappings }) {
   const [activePage, setActivePage] = useState('Home');
   const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
   const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1105,8 +1167,8 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
       </aside>
       <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
         {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
-        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} />}
-        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />}
+        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} cepMappings={cepMappings} />}
       </main>
     </div>
   );
@@ -1148,6 +1210,7 @@ export default function App() {
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
   const [systemSettings, setSystemSettings] = useState({ devBypass: true }); // Default true
+  const [cepMappings, setCepMappings] = useState([]); // Mapeamento de CEP
   const [dbReady, setDbReady] = useState(false);
 
   // 2. Persist Login
@@ -1199,6 +1262,7 @@ export default function App() {
                if(doc.id === 'delimiters') setDelimiters(doc.data());
                if(doc.id === 'tools') setToolsConfig(doc.data()); 
                if(doc.id === 'config') setSystemSettings(doc.data());
+               if(doc.id === 'cepMappings') setCepMappings(doc.data().list || []);
            });
            if(snap.empty) {
                setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
@@ -1219,7 +1283,11 @@ export default function App() {
     const style = document.createElement('style');
     style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
     document.head.appendChild(style);
+    if (!document.querySelector('script[src*="mammoth"]')) {
+       const s = document.createElement('script'); s.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js";
+       document.head.appendChild(s);
+    }
   }, []);
 
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
+  return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
 }
