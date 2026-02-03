@@ -40,17 +40,17 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas
-const sortTools = (config) => {
+// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
+function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
         return a.label.localeCompare(b.label);
     });
-};
+}
 
-// Helper para chaves compostas
+// Helper para chave composta
 const getCompositeKey = (moduleId, subId) => subId ? `${moduleId}_${subId}` : moduleId;
 
 // ============================================================================
@@ -68,16 +68,19 @@ function SafePreview({ html }) {
         const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         const PADDING = 40;
         
+        // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
         const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
+        // Altura do conteúdo
         const contentHeight = shadowRootRef.current.body.scrollHeight;
-        const displayHeight = Math.max(contentHeight, 1123); 
+        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
         
         containerRef.current.style.height = `${displayHeight}px`;
+        // Ajusta wrapper com margem extra no final para scroll
         wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
@@ -87,6 +90,7 @@ function SafePreview({ html }) {
     
     setTimeout(updateScale, 100);
     setTimeout(updateScale, 500);
+    setTimeout(updateScale, 1000);
 
     return () => observer.disconnect();
   }, [html]);
@@ -156,9 +160,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.5', date: '2024-02-17', title: 'Layout Admin', content: 'Correção de visibilidade das abas Users e Config em telas menores.' },
-  { id: '2', version: '4.4', date: '2024-02-16', title: 'Sub-Geradores', content: 'Adicionada capacidade de criar múltiplos tipos de termos dentro de um único módulo.' },
-  { id: '3', version: '4.3', date: '2024-02-15', title: 'Integração CEP', content: 'Edição de mapeamentos de CEP e busca automática aprimorada.' },
+  { id: '1', version: '4.6', date: '2024-02-18', title: 'Correção Crítica', content: 'Remoção total de injeção de scripts externos para resolver conflitos de ambiente.' },
+  { id: '2', version: '4.5', date: '2024-02-17', title: 'Correção de Erros', content: 'Remoção de scripts conflitantes e estabilização do sistema.' },
+  { id: '3', version: '4.4', date: '2024-02-16', title: 'Sub-Geradores', content: 'Adicionada capacidade de criar múltiplos tipos de termos dentro de um único módulo.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -214,7 +218,7 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
     }
 
     setTimeout(() => {
-      const foundUser = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+      const foundUser = (users || []).find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
       
       if (!foundUser) {
         setError('E-mail não encontrado.');
@@ -239,7 +243,7 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
     try {
         const result = await signInWithPopup(auth, provider);
         const googleUser = result.user;
-        const foundUser = users.find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
+        const foundUser = (users || []).find(u => u.email && u.email.toLowerCase() === googleUser.email.toLowerCase());
         if (foundUser) {
             if (!foundUser.active) { setError('Conta desativada.'); await signOut(auth); signInAnonymously(auth); }
             else onLogin(foundUser);
@@ -250,7 +254,7 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
   };
 
   const handleDevLogin = () => {
-    const devUser = users.length > 0 
+    const devUser = (users || []).length > 0 
         ? users.find(u => u.email === 'dev@core.teste') 
         : DEFAULT_USERS.find(u => u.email === 'dev@core.teste');
     if (devUser) onLogin(devUser); else alert('Usuário DEV não encontrado. Aguarde carregamento.');
@@ -323,7 +327,7 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
         <div className="w-full lg:w-80">
              <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Changelog</h2>
              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto custom-scroll">
-                {changelog.map(log => (
+                {(changelog || []).map(log => (
                     <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                         <div className="flex justify-between items-center mb-1"><span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400">{log.date}</span></div>
                         <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
@@ -653,10 +657,15 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
           const sourceSession = sessions[sourceSessionIndex];
           const targetSession = sessions[targetSessionIndex];
           
+          // Remove do original
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
           
-          if (targetIndex !== null) targetSession.tags.splice(targetIndex, 0, movedTag);
-          else targetSession.tags.push(movedTag);
+          // Insere no destino
+          if (targetIndex !== null) {
+               targetSession.tags.splice(targetIndex, 0, movedTag);
+          } else {
+               targetSession.tags.push(movedTag);
+          }
           
           await setDoc(getDocRef('tags', currentTagConfigKey), { ...currentConfig, sessions });
       }
@@ -763,17 +772,26 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                 <option value="checkbox">Caixa de Seleção (Múltipla)</option>
                             </select>
 
-                            {/* Checkbox Options */}
+                            {/* Checkbox Options Manager */}
                             {tagForm.type === 'checkbox' && (
                                 <div className="bg-slate-100 p-3 rounded border border-slate-200">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Opções</label>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Opções de Checkbox</label>
                                     <div className="flex gap-2 mb-2">
-                                        <input className="flex-1 border p-1 text-sm rounded outline-none" placeholder="Nova opção" value={newOption} onChange={(e) => setNewOption(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddOption(); } }} />
+                                        <input 
+                                            className="flex-1 border p-1 text-sm rounded outline-none focus:border-[#00DBFF]" 
+                                            placeholder="Nova opção (ex: Sim/Não)" 
+                                            value={newOption} 
+                                            onChange={(e) => setNewOption(e.target.value)}
+                                            onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddOption(); } }}
+                                        />
                                         <button type="button" onClick={handleAddOption} className="bg-blue-500 text-white px-3 rounded text-sm font-bold">+</button>
                                     </div>
                                     <div className="space-y-1 max-h-32 overflow-y-auto">
                                         {(tagForm.options || []).map((opt, idx) => (
-                                            <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border text-xs"><span>{opt}</span><button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 font-bold hover:text-red-700">x</button></div>
+                                            <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border text-xs">
+                                                <span>{opt}</span>
+                                                <button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 font-bold hover:text-red-700">x</button>
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
@@ -848,10 +866,64 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                 </div>
             )}
 
-            {/* Users, Logs, Integrations and Config sections omitted for brevity but assumed present */}
+            {activeTab === 'users' && (
+                <div className="space-y-6">
+                    <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Nome</th><th className="p-4">Email</th><th className="p-4">Role</th><th className="p-4 text-right">Ações</th></tr></thead><tbody>{users.map(u => <tr key={u.id} className="border-b hover:bg-slate-50"><td className="p-4 font-bold text-slate-700">{u.name}</td><td className="p-4 text-slate-500">{u.email}</td><td className="p-4"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold uppercase">{u.role}</span></td><td className="p-4 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-600 font-bold text-xs mr-4 hover:underline">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500 font-bold text-xs hover:underline">Excluir</button></td></tr>)}</tbody></table>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'changelog' && (
+                 <div className="space-y-6">
+                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                         <div className="grid grid-cols-3 gap-4 mb-4"><input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/><input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/><input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/></div><textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-20 mb-4"/><button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded text-sm font-bold">{editingLogId ? 'Atualizar' : 'Adicionar'}</button></div>
+                     <div className="space-y-3">{(changelog || []).map(log => (<div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start"><div><div className="flex items-center gap-3 mb-1"><span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400 font-bold uppercase">{log.date}</span></div><h4 className="font-bold text-slate-700">{log.title}</h4><p className="text-sm text-slate-500 mt-1">{log.content}</p></div><div className="flex gap-3"><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs font-bold hover:underline">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs font-bold hover:underline">Excluir</button></div></div>))}</div>
+                 </div>
+            )}
+
+            {activeTab === 'integrations' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg text-slate-700 mb-4">{editingCepMapId ? 'Editar Integração' : 'Busca Automática de Endereço (ViaCEP)'}</h3>
+                        <p className="text-xs text-slate-500 mb-4">Configure quais tags devem ser preenchidas automaticamente quando um CEP for digitado. Use os IDs das tags (ex: RUA_DESTINO).</p>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Gatilho (CEP)</label><input value={cepMapForm.triggerTag} onChange={e => setCepMapForm({...cepMapForm, triggerTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CEP_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Rua (Logradouro)</label><input value={cepMapForm.streetTag} onChange={e => setCepMapForm({...cepMapForm, streetTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: RUA_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Bairro</label><input value={cepMapForm.districtTag} onChange={e => setCepMapForm({...cepMapForm, districtTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: BAIRRO_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Cidade</label><input value={cepMapForm.cityTag} onChange={e => setCepMapForm({...cepMapForm, cityTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CIDADE_DESTINO"/></div>
+                            <div><label className="block text-xs font-bold text-slate-500">Tag de Estado (UF)</label><input value={cepMapForm.stateTag} onChange={e => setCepMapForm({...cepMapForm, stateTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: UF_DESTINO"/></div>
+                        </div>
+                        <div className="flex gap-2"><button onClick={handleSaveCepMapping} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">{editingCepMapId ? 'Atualizar Regra' : 'Adicionar Regra'}</button>{editingCepMapId && <button onClick={() => { setEditingCepMapId(null); setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' }) }} className="bg-slate-200 px-4 py-2 rounded font-bold text-sm">Cancelar</button>}</div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                         <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Gatilho (CEP)</th><th className="p-3">Rua</th><th className="p-3">Bairro</th><th className="p-3">Cidade/UF</th><th className="p-3 text-right">Ação</th></tr></thead>
+                             <tbody>{(cepMappings || []).map(map => (<tr key={map.id} className="border-b hover:bg-slate-50"><td className="p-3 font-bold">{map.triggerTag}</td><td className="p-3 text-slate-500">{map.streetTag || '-'}</td><td className="p-3 text-slate-500">{map.districtTag || '-'}</td><td className="p-3 text-slate-500">{map.cityTag}/{map.stateTag}</td><td className="p-3 text-right"><button onClick={() => handleEditCepMapping(map)} className="text-blue-500 font-bold mr-3">Editar</button><button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-bold">X</button></td></tr>))}</tbody>
+                         </table>
+                    </div>
+                </div>
+            )}
+            
+            {activeTab === 'config' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg text-slate-700 mb-4">Configurações Gerais</h3>
+                        <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-slate-50">
+                            <input type="checkbox" checked={configDevBypass} onChange={(e) => setConfigDevBypass(e.target.checked)} className="w-5 h-5 rounded text-[#00DBFF] focus:ring-[#00DBFF]" />
+                            <div>
+                                <span className="block font-bold text-slate-800">Ativar Login de Desenvolvedor (Bypass)</span>
+                                <span className="text-xs text-slate-500">Permite acesso local sem autenticação real (útil para testes offline).</span>
+                            </div>
+                        </label>
+                        <div className="mt-4"><button onClick={handleSaveConfig} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">Salvar Configurações</button></div>
+                    </div>
+                </div>
+            )}
         </div>
       </div>
-
+      
+      {/* Editor & Tool Modals (Mantidos iguais) */}
       {editingTemplate && (
             <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
                 <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
@@ -919,7 +991,7 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                     <div><label className="block text-xs font-bold text-slate-500 mb-1">ID Único</label><input value={toolForm.id} onChange={e => setToolForm({...toolForm, id: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm bg-slate-50" placeholder="ex: notebooks" disabled={isEditingTool} required /></div>
                     <div><label className="block text-xs font-bold text-slate-500 mb-1">Nome</label><input value={toolForm.label} onChange={e => setToolForm({...toolForm, label: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm" required /></div>
                     <div><label className="block text-xs font-bold text-slate-500 mb-1">Descrição</label><input value={toolForm.desc} onChange={e => setToolForm({...toolForm, desc: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm" /></div>
-                    <div><label className="block text-xs font-bold text-slate-500 mb-1">Ícone SVG</label><textarea value={toolForm.icon} onChange={e => setToolForm({...toolForm, icon: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm h-16 font-mono text-xs" /></div>
+                    <div><label className="block text-xs font-bold text-slate-500 mb-1">Ícone SVG (Path)</label><textarea value={toolForm.icon} onChange={e => setToolForm({...toolForm, icon: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm h-16 font-mono text-xs" /></div>
                     
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                         <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Sub-Geradores (Tipos)</label>
@@ -963,6 +1035,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
     activeSessions.forEach(session => {
         session.tags.forEach(tag => {
             if (initialData[tag.id] === undefined) {
+                // Se for checkbox, inicializa como array vazio
                 if (tag.type === 'checkbox') initialData[tag.id] = [];
                 else initialData[tag.id] = '';
             }
@@ -974,6 +1047,8 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
 
   const handleChange = async (tag, value) => {
     setFormData(prev => ({ ...prev, [tag.id]: value }));
+    
+    // Check for CEP trigger
     if (value.replace(/\D/g, '').length === 8 && cepMappings) {
         const mapping = cepMappings.find(m => m.triggerTag === tag.id);
         if (mapping) {
@@ -997,7 +1072,11 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
   const handleCheckboxChange = (tagId, option) => {
       setFormData(prev => {
           const current = prev[tagId] || [];
-          return current.includes(option) ? { ...prev, [tagId]: current.filter(item => item !== option) } : { ...prev, [tagId]: [...current, option] };
+          if (current.includes(option)) {
+              return { ...prev, [tagId]: current.filter(item => item !== option) };
+          } else {
+              return { ...prev, [tagId]: [...current, option] };
+          }
       });
   };
 
@@ -1006,8 +1085,13 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
       sessions.forEach(session => {
           session.tags.forEach(tag => {
               let val = formData[tag.id];
-              if (Array.isArray(val)) val = val.join(', ');
+              
+              if (Array.isArray(val)) {
+                  val = val.join(', '); // Formata array como string para exibição
+              }
+              
               val = val || '';
+
               if(tag.id === 'DATA' && val && !Array.isArray(val) && val.includes('-')) val = val.split('-').reverse().join('/');
               const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
               html = html.split(tagPattern).join(val);
@@ -1036,22 +1120,37 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
             {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
             {sessions.map(session => (
                 <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
-                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>{session.title}</h3>
+                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
+                        {session.title}
+                    </h3>
                     <div className="space-y-3">
                         {session.tags.map(tag => (
                             <div key={tag.id}>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
+                                
                                 {tag.type === 'checkbox' ? (
                                     <div className="space-y-2 bg-slate-50 p-2 rounded border border-slate-200">
                                         {(tag.options || []).map((opt, idx) => (
                                             <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-100 p-1 rounded">
-                                                <input type="checkbox" checked={(formData[tag.id] || []).includes(opt)} onChange={() => handleCheckboxChange(tag.id, opt)} className="rounded text-[#00DBFF] focus:ring-[#00DBFF]" />
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={(formData[tag.id] || []).includes(opt)}
+                                                    onChange={() => handleCheckboxChange(tag.id, opt)}
+                                                    className="rounded text-[#00DBFF] focus:ring-[#00DBFF]"
+                                                />
                                                 <span className="text-slate-700">{opt}</span>
                                             </label>
                                         ))}
+                                        {(tag.options || []).length === 0 && <span className="text-xs text-red-400">Sem opções configuradas.</span>}
                                     </div>
                                 ) : (
-                                    <input type={tag.type} className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" value={formData[tag.id] || ''} onChange={e => handleChange(tag, e.target.value)} />
+                                    <input 
+                                        type={tag.type} 
+                                        className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" 
+                                        value={formData[tag.id] || ''} 
+                                        onChange={e => handleChange(tag, e.target.value)} 
+                                    />
                                 )}
                             </div>
                         ))}
@@ -1069,7 +1168,6 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
   );
 }
 
-// ... (Dashboard e App Root mantidos e renderizados)
 // ============================================================================
 // 7. DASHBOARD
 // ============================================================================
@@ -1181,7 +1279,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
             </div>
             {(user.role === 'admin' || user.permissions.includes('all')) && (
               <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Administração
               </button>
             )}
