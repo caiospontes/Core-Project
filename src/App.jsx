@@ -31,6 +31,7 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
+// Inicialização segura (Singleton)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,16 +41,16 @@ const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 // Helper para ordenar ferramentas
-function sortTools(config) {
+const sortTools = (config) => {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
         if (a.active && !b.active) return -1;
         if (!a.active && b.active) return 1;
         return a.label.localeCompare(b.label);
     });
-}
+};
 
-// Helper para gerar chave composta (modulo + submod)
+// Helper para chaves compostas
 const getCompositeKey = (moduleId, subId) => subId ? `${moduleId}_${subId}` : moduleId;
 
 // ============================================================================
@@ -64,7 +65,7 @@ function SafePreview({ html }) {
     const updateScale = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current && shadowRootRef.current.body) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const A4_WIDTH_PX = 794; 
+        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
         const PADDING = 40;
         
         const availableWidth = parentWidth - PADDING;
@@ -155,8 +156,9 @@ const DEFAULT_USERS = [
 const DEFAULT_DELIMITERS = { prefix: '<<', suffix: '>>' };
 
 const DEFAULT_CHANGELOG = [
-  { id: '1', version: '4.4', date: '2024-02-16', title: 'Sub-Geradores', content: 'Adicionada capacidade de criar múltiplos tipos de termos dentro de um único módulo.' },
-  { id: '2', version: '4.3', date: '2024-02-15', title: 'Integração CEP', content: 'Edição de mapeamentos de CEP e busca automática aprimorada.' },
+  { id: '1', version: '4.5', date: '2024-02-17', title: 'Layout Admin', content: 'Correção de visibilidade das abas Users e Config em telas menores.' },
+  { id: '2', version: '4.4', date: '2024-02-16', title: 'Sub-Geradores', content: 'Adicionada capacidade de criar múltiplos tipos de termos dentro de um único módulo.' },
+  { id: '3', version: '4.3', date: '2024-02-15', title: 'Integração CEP', content: 'Edição de mapeamentos de CEP e busca automática aprimorada.' },
 ];
 
 const DEFAULT_TOOLS_CONFIG = {
@@ -339,7 +341,7 @@ function HomePage({ onNavigate, user, changelog, toolsConfig }) {
 function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, toolsConfig, systemSettings, cepMappings }) {
   const [activeTab, setActiveTab] = useState('templates');
   const [targetModule, setTargetModule] = useState(Object.keys(toolsConfig)[0] || '');
-  const [targetSubModule, setTargetSubModule] = useState(''); // Estado para Sub-Gerador selecionado
+  const [targetSubModule, setTargetSubModule] = useState('');
   
   // Tag Management
   const [tagModuleFilter, setTagModuleFilter] = useState(Object.keys(toolsConfig)[0] || '');
@@ -673,7 +675,6 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
         <div className="max-w-5xl mx-auto">
-            {/* TEMPLATES */}
             {activeTab === 'templates' && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -720,7 +721,6 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                 </div>
             )}
             
-            {/* TAGS */}
             {activeTab === 'tags' && (
                 <div className="flex gap-6 items-start h-full">
                      <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
@@ -855,21 +855,49 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       {editingTemplate && (
             <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
                 <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
-                    <span className="font-bold">Editor HTML ({toolsConfig[editingTemplate]?.label || editingTemplate})</span>
+                    <span className="font-bold">Editor HTML ({toolsConfig[editingTemplate]?.label})</span>
                     <div className="flex gap-2"><button onClick={() => setEditingTemplate(null)} className="text-slate-400 text-sm">Cancelar</button><button onClick={handleSaveEditedTemplate} className="bg-[#007acc] px-3 py-1 rounded text-sm">Salvar</button></div>
                 </div>
                 <div className="flex-1 flex overflow-hidden">
                     <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
-                        <div className="mb-4">
-                            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags</p>
-                            {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
-                                <div key={s.id} className="mb-4">
-                                    <p className="text-[10px] text-[#00DBFF] font-bold uppercase mb-1">{s.title}</p>
-                                    {s.tags.map(tag => (
-                                        <button key={tag.id} onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="w-full text-left text-gray-300 hover:bg-[#37373d] px-2 py-1 rounded text-xs font-mono mb-1">{delimiters.prefix}{tag.id}{delimiters.suffix}</button>
-                                    ))}
+                        {editorEditingTagId ? (
+                             <div className="p-3 bg-[#333] rounded mb-4 border border-blue-500/50">
+                                <h4 className="text-xs font-bold text-blue-400 mb-2">Editar Tag</h4>
+                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.id} onChange={e => setEditorTagForm({...editorTagForm, id: e.target.value.toUpperCase()})} placeholder="ID" />
+                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.label} onChange={e => setEditorTagForm({...editorTagForm, label: e.target.value})} placeholder="Label" />
+                                <select className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.type} onChange={e => setEditorTagForm({...editorTagForm, type: e.target.value})}>
+                                    <option value="text">Texto</option><option value="date">Data</option><option value="email">Email</option>
+                                </select>
+                                <div className="flex gap-2">
+                                    <button onClick={handleSaveTagInEditor} className="bg-blue-600 text-white px-2 py-1 rounded text-xs flex-1">Salvar</button>
+                                    <button onClick={() => setEditorEditingTagId(null)} className="bg-gray-600 text-white px-2 py-1 rounded text-xs">Cancelar</button>
                                 </div>
-                            ))}
+                             </div>
+                        ) : (
+                             <div className="mb-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags do Módulo</p>
+                                {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
+                                    <div key={s.id} className="mb-4">
+                                        <p className="text-[10px] text-[#00DBFF] font-bold uppercase mb-1">{s.title}</p>
+                                        {s.tags.map(tag => (
+                                            <div key={tag.id} className="group flex items-center justify-between px-2 py-1 hover:bg-[#37373d] rounded mb-1">
+                                                <button onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="text-left flex-1 min-w-0">
+                                                    <span className="text-gray-300 text-xs block truncate">{tag.label}</span>
+                                                    <span className="text-[#00DBFF] opacity-50 text-[10px]">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                                                </button>
+                                                <div className="hidden group-hover:flex gap-1">
+                                                    <button onClick={() => prepareEditTagInEditor(tag)} className="text-blue-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                                    <button onClick={() => handleDeleteTagInEditor(tag.id)} className="text-red-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                             </div>
+                        )}
+                         <div className="border-t border-[#333] pt-4 mt-2">
+                             <input className="bg-[#3c3c3c] text-white text-xs p-1 rounded w-full mb-1" placeholder="Nova Tag" id="quickTagInput" onKeyDown={(e) => { if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value); }} />
+                             <p className="text-[9px] text-gray-500">Enter para criar</p>
                         </div>
                     </div>
                     <textarea ref={textAreaRef} className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} spellCheck="false" />
@@ -1165,12 +1193,10 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
             <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
         </div>
       </aside>
-      
-      {/* Overlay para mobile */}
-      {mobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>}
-
       <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
-        {renderContent()}
+        {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
+        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />}
+        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} cepMappings={cepMappings} />}
       </main>
     </div>
   );
