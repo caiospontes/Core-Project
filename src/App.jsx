@@ -31,7 +31,6 @@ const firebaseConfig = {
   measurementId: "G-LMEBJ66GHL"
 };
 
-// Inicialização segura (Singleton)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,7 +39,6 @@ const appId = firebaseConfig.projectId;
 const getCollectionRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Helper para ordenar ferramentas (Ativos primeiro, depois alfabético)
 function sortTools(config) {
     if (!config) return [];
     return Object.entries(config).sort(([, a], [, b]) => {
@@ -50,7 +48,6 @@ function sortTools(config) {
     });
 }
 
-// Helper para chave composta
 const getCompositeKey = (moduleId, subId) => subId ? `${moduleId}_${subId}` : moduleId;
 
 // ============================================================================
@@ -65,22 +62,19 @@ function SafePreview({ html }) {
     const updateScale = () => {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current && shadowRootRef.current.body) {
         const parentWidth = wrapperRef.current.clientWidth;
-        const A4_WIDTH_PX = 794; // 210mm @ 96dpi
+        const A4_WIDTH_PX = 794; 
         const PADDING = 40;
         
-        // Calcula escala para caber na largura disponível
         const availableWidth = parentWidth - PADDING;
         const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        // Altura do conteúdo
         const contentHeight = shadowRootRef.current.body.scrollHeight;
-        const displayHeight = Math.max(contentHeight, 1123); // Mínimo A4
+        const displayHeight = Math.max(contentHeight, 1123); 
         
         containerRef.current.style.height = `${displayHeight}px`;
-        // Ajusta wrapper com margem extra no final para scroll
         wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
       }
     };
@@ -112,7 +106,7 @@ function SafePreview({ html }) {
             min-height: 1123px; 
             height: auto;
             background: white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             margin: 0 auto;
             overflow: visible; 
             position: relative;
@@ -191,7 +185,7 @@ const DEFAULT_TAGS_WITH_SESSIONS = {
 };
 
 const DEFAULT_HTML_TEMPLATE = `<div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333;">
-  <h1 style="border-bottom: 2px solid #002233; color: #002233; padding-bottom: 10px;">Termo Padrão</h1>
+  <h1 style="border-bottom: 2px solid #e2e8f0; color: #0f172a; padding-bottom: 10px;">Termo Padrão</h1>
   <p>Edite este modelo no painel administrativo.</p>
 </div>`;
 
@@ -261,35 +255,50 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-[#00121a] relative overflow-hidden font-sans">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#00DBFF]/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#005580]/10 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
-      <div className="w-full max-w-md p-8 relative z-10 animate-fadeIn">
-        <div className="text-center mb-10">
-          <div className="bg-white/5 w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-2xl backdrop-blur-sm">
-             <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-12" />
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 font-sans text-slate-800">
+      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+        
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 mx-auto rounded-lg flex items-center justify-center mb-4 border border-slate-100 shadow-sm bg-slate-50">
+             <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-10" />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">CORE</h1>
-          <p className="text-[#00DBFF] text-xs font-bold tracking-widest uppercase mt-1">Centro de Otimização</p>
-          {!dbReady && <span className="text-xs text-yellow-500 animate-pulse block mt-4">Conectando ao banco de dados...</span>}
-          {dbReady && <span className="text-xs text-green-500 block mt-4">Sistema Online</span>}
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">CORE ERP</h1>
+          <p className="text-slate-500 text-sm mt-1">Centro de Otimização Operacional</p>
+          {!dbReady && <span className="text-xs text-amber-600 font-medium block mt-2">Sincronizando ambiente...</span>}
+          {dbReady && <span className="text-xs text-emerald-600 font-medium block mt-2">Ambiente Seguro Conectado</span>}
         </div>
         
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
-          <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white text-slate-700 font-bold py-3 rounded-lg shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-3 mb-6">
-            {loading ? <span className="text-xs">Processando...</span> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-5 h-5" /><span>Entrar com Google</span></>}
+        <div className="space-y-6">
+          <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border border-slate-300 text-slate-700 font-medium py-2.5 rounded-md hover:bg-slate-50 transition-colors flex items-center justify-center gap-3 shadow-sm">
+            {loading ? <span className="text-sm">Processando...</span> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-4 h-4" /><span className="text-sm">Acessar com Google Workspace</span></>}
           </button>
-          <div className="flex items-center gap-4 mb-6"><div className="h-px bg-white/10 flex-1"></div><span className="text-xs text-slate-500 font-bold">OU USE CREDENCIAIS</span><div className="h-px bg-white/10 flex-1"></div></div>
+          
+          <div className="flex items-center gap-3">
+              <div className="h-px bg-slate-200 flex-1"></div>
+              <span className="text-xs text-slate-400 font-medium">ACESSO CREDENCIADO</span>
+              <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+          
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-center gap-2 font-bold animate-pulse"><span>⚠️</span> {error}</div>}
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail Corporativo" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full bg-[#002233]/50 border border-slate-700 text-white rounded-lg p-3 text-sm focus:border-[#00DBFF] outline-none transition-colors" />
-            <button type="submit" disabled={loading} className="w-full bg-[#002233] border border-[#00DBFF]/30 text-[#00DBFF] font-bold py-3 rounded-lg hover:bg-[#00DBFF] hover:text-[#002233] transition-all text-sm">Entrar</button>
+            {error && <div className="bg-red-50 border-l-4 border-red-500 text-red-700 text-sm p-3 rounded-md">{error}</div>}
+            
+            <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail Corporativo</label>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white border border-slate-300 text-slate-900 rounded-md p-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+            </div>
+            <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Senha</label>
+                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-white border border-slate-300 text-slate-900 rounded-md p-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+            </div>
+            
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors shadow-sm text-sm mt-2">
+                Entrar no Sistema
+            </button>
             
             {systemSettings?.devBypass && (
-                <div className="pt-2 text-center">
-                    <button type="button" onClick={handleDevLogin} className="text-[10px] text-slate-600 hover:text-white transition-colors">
-                     Desenvolvedor (Offline/Local)
+                <div className="pt-4 text-center border-t border-slate-100">
+                    <button type="button" onClick={handleDevLogin} className="text-xs text-slate-500 hover:text-blue-600 font-medium transition-colors">
+                     Acesso de Desenvolvedor (Bypass)
                     </button>
                 </div>
             )}
@@ -303,37 +312,49 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
 // --- HOME PAGE ---
 function HomePage({ onNavigate, user, changelog, toolsConfig }) {
   return (
-  <div className="h-full w-full flex flex-col bg-[#f0f4f8] overflow-y-auto">
-    <div className="bg-gradient-to-r from-[#002233] to-[#001a26] text-white px-10 py-16 shadow-lg">
+  <div className="h-full w-full flex flex-col bg-slate-50 overflow-y-auto">
+    <div className="bg-white border-b border-slate-200 px-8 py-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-black mb-2 tracking-tight">CORE <span className="text-[#00DBFF]">| Centro de Otimização</span></h1>
-        <p className="text-slate-400 text-lg max-w-2xl">Gestão centralizada de ativos e processos.</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Visão Geral</h1>
+        <p className="text-slate-500 text-sm mt-1">Acesso rápido aos módulos operacionais do CORE.</p>
       </div>
     </div>
-    <div className="flex-1 p-10 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
+
+    <div className="flex-1 p-8 max-w-6xl mx-auto w-full flex flex-col lg:flex-row gap-8">
         <div className="flex-1">
-            <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Ferramentas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4">Módulos Disponíveis</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortTools(toolsConfig).map(([key, tool]) => (
-                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed grayscale'}`}>
-                        <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-lg flex items-center justify-center mb-4"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
-                        <h3 className="font-bold text-[#002233] text-lg">{tool.label}</h3>
-                        {tool.subTypes && tool.subTypes.length > 0 && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full inline-block mb-1">{tool.subTypes.length} opções</span>}
-                        <p className="text-sm text-slate-500 mt-2 h-10 line-clamp-2">{tool.desc}</p>
+                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-5 rounded-lg shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:border-blue-300 hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed bg-slate-50'}`}>
+                        <div className="flex items-start gap-4">
+                            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded flex-shrink-0 flex items-center justify-center border border-blue-100">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-slate-900">{tool.label}</h3>
+                                {tool.subTypes && tool.subTypes.length > 0 && <span className="mt-1 text-[10px] bg-slate-100 border border-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded inline-block">{tool.subTypes.length} variações</span>}
+                                <p className="text-sm text-slate-500 mt-1 line-clamp-2">{tool.desc}</p>
+                            </div>
+                        </div>
                     </div>
                 ))}
             </div>
         </div>
         <div className="w-full lg:w-80">
-             <h2 className="text-lg font-bold text-slate-700 mb-6 border-b pb-2">Changelog</h2>
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4 max-h-[500px] overflow-y-auto custom-scroll">
-                {(changelog || []).map(log => (
-                    <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                        <div className="flex justify-between items-center mb-1"><span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400">{log.date}</span></div>
-                        <h4 className="font-bold text-slate-700 text-sm">{log.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{log.content}</p>
-                    </div>
-                ))}
+             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4">Atualizações Recentes</h2>
+             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-0 overflow-hidden">
+                <div className="max-h-[500px] overflow-y-auto custom-scroll p-4 space-y-4">
+                    {(changelog || []).map(log => (
+                        <div key={log.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">v{log.version}</span>
+                                <span className="text-xs text-slate-400 font-medium">{log.date}</span>
+                            </div>
+                            <h4 className="font-semibold text-slate-800 text-sm mt-1">{log.title}</h4>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">{log.content}</p>
+                        </div>
+                    ))}
+                </div>
              </div>
         </div>
     </div>
@@ -428,13 +449,11 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       setToolForm(prev => ({...prev, subTypes: [...(prev.subTypes || []), { ...newSubType }] }));
       setNewSubType({ id: '', label: '' });
   };
-  
   const handleRemoveSubType = (idx) => {
       setToolForm(prev => ({...prev, subTypes: prev.subTypes.filter((_, i) => i !== idx) }));
   };
 
   // --- TAGS ---
-  // Get current active config based on sub-type
   const currentTagConfigKey = getCurrentTemplateKey(tagModuleFilter, tagSubModuleFilter);
   
   const insertAtCursor = (textToInsert) => {
@@ -523,7 +542,6 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
         setTagForm({ id: '', label: '', type: 'text', sessionId: tagForm.sessionId, options: [] });
         setEditingTag(null);
         setEditingTagId(null);
-        alert('Tag salva!');
       } else { alert('Erro ou tag duplicada!'); }
   };
   const handleDeleteTag = async (sessionId, tagIndex, configKey = currentTagConfigKey) => {
@@ -582,148 +600,133 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
   const prepareEditTool = (key, tool) => { setEditingToolKey(key); setToolForm({ id: key, ...tool, subTypes: tool.subTypes || [] }); setIsEditingTool(true); setShowToolModal(true); };
   const handleDeleteTool = async (key) => { if(window.confirm('Excluir?')) { const n = { ...toolsConfig }; delete n[key]; await setDoc(getDocRef('settings', 'tools'), n); }};
 
-  const handleSaveEditedTemplate = async () => { await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' }); setEditingTemplate(null); alert('Salvo!'); };
-  const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert('Salvo.'); };
+  const handleSaveEditedTemplate = async () => { await setDoc(getDocRef('templates', editingTemplate), { name: 'Editado Manualmente', content: htmlContent, date: new Date().toLocaleDateString(), type: 'html' }); setEditingTemplate(null); };
+  const handleSaveDelimiters = async () => { await setDoc(getDocRef('settings', 'delimiters'), tempDelimiters); alert('Símbolos Salvos.'); };
 
   const handleSaveUser = async (e) => { e.preventDefault(); const uid=editingUserId||Date.now().toString(); const d={...userForm, id:uid, active:true}; if(d.role==='admin') d.permissions=['all']; await setDoc(getDocRef('users',uid),d,{merge:true}); setShowUserModal(false); };
-  const removeUser = async (id) => { if(window.confirm('Remover?')) await deleteDoc(getDocRef('users', id)); };
+  const removeUser = async (id) => { if(window.confirm('Remover usuário?')) await deleteDoc(getDocRef('users', id)); };
   const handleEditUserClick = (u) => { setUserForm(u); setEditingUserId(u.id); setShowUserModal(true); };
-  const toggleUserPermission = (k) => { if(userForm.permissions.includes(k)) setUserForm({...userForm, permissions: userForm.permissions.filter(p=>p!==k)}); else setUserForm({...userForm, permissions: [...userForm.permissions, k]}); };
   
   const handleSaveLog = async (e) => { e.preventDefault(); const id=editingLogId||Date.now().toString(); await setDoc(getDocRef('changelog',id),{...newLog,id},{merge:true}); setEditingLogId(null); setNewLog({version:'',date:'',title:'',content:''}); };
   const handleDeleteLog = async (id) => await deleteDoc(getDocRef('changelog',id));
-  const handleEditLogClick = (l) => { setNewLog(l); setEditingLogId(l.id); };
   
   const handleSaveConfig = async () => {
       await setDoc(getDocRef('settings', 'config'), { devBypass: configDevBypass }, { merge: true });
-      alert('Configurações salvas.');
+      alert('Configurações do sistema salvas com sucesso.');
   };
 
-  // CEP Mapping Handlers
   const handleSaveCepMapping = async () => {
       const currentMappings = cepMappings || [];
       let updatedMappings;
-
       if (editingCepMapId) {
-          updatedMappings = currentMappings.map(m => 
-              m.id === editingCepMapId ? { ...m, ...cepMapForm } : m
-          );
+          updatedMappings = currentMappings.map(m => m.id === editingCepMapId ? { ...m, ...cepMapForm } : m);
           setEditingCepMapId(null);
       } else {
           const newMapping = { id: Date.now().toString(), ...cepMapForm };
           updatedMappings = [...currentMappings, newMapping];
       }
-      
       await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings });
       setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' });
-      alert('Integração salva!');
   };
+  const handleEditCepMapping = (mapping) => { setEditingCepMapId(mapping.id); setCepMapForm({ triggerTag: mapping.triggerTag, streetTag: mapping.streetTag, districtTag: mapping.districtTag, cityTag: mapping.cityTag, stateTag: mapping.stateTag }); };
+  const handleDeleteCepMapping = async (mapId) => { if(!window.confirm('Remover regra de integração?')) return; const updatedMappings = (cepMappings || []).filter(m => m.id !== mapId); await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings }); };
 
-  const handleEditCepMapping = (mapping) => {
-      setEditingCepMapId(mapping.id);
-      setCepMapForm({
-          triggerTag: mapping.triggerTag,
-          streetTag: mapping.streetTag,
-          districtTag: mapping.districtTag,
-          cityTag: mapping.cityTag,
-          stateTag: mapping.stateTag
-      });
-  };
-
-  const handleDeleteCepMapping = async (mapId) => {
-      if(!window.confirm('Remover esta integração?')) return;
-      const updatedMappings = (cepMappings || []).filter(m => m.id !== mapId);
-      await setDoc(getDocRef('settings', 'cepMappings'), { list: updatedMappings });
-  };
-
-  // Drag Drop
-  const onDragStart = (e, sessionId, tagIndex) => {
-      e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: currentTagConfigKey }));
-      e.dataTransfer.effectAllowed = 'move';
-  };
+  const onDragStart = (e, sessionId, tagIndex) => { e.dataTransfer.setData("text/plain", JSON.stringify({ sessionId, tagIndex, module: currentTagConfigKey })); e.dataTransfer.effectAllowed = 'move'; };
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
   const handleDrop = async (e, targetSessionId, targetIndex = null) => {
       e.preventDefault(); e.stopPropagation();
       const dataStr = e.dataTransfer.getData("text/plain"); if(!dataStr) return;
       const data = JSON.parse(dataStr); if (data.module !== currentTagConfigKey) return;
-
       const currentConfig = tagsConfig[currentTagConfigKey];
       const sessions = JSON.parse(JSON.stringify(currentConfig.sessions));
-      
       const sourceSessionIndex = sessions.findIndex(s => s.id === data.sessionId);
       const targetSessionIndex = sessions.findIndex(s => s.id === targetSessionId);
 
       if (sourceSessionIndex !== -1 && targetSessionIndex !== -1) {
           const sourceSession = sessions[sourceSessionIndex];
           const targetSession = sessions[targetSessionIndex];
-          
-          // Remove do original
           const [movedTag] = sourceSession.tags.splice(data.tagIndex, 1);
-          
-          // Insere no destino
-          if (targetIndex !== null) {
-               targetSession.tags.splice(targetIndex, 0, movedTag);
-          } else {
-               targetSession.tags.push(movedTag);
-          }
-          
+          if (targetIndex !== null) targetSession.tags.splice(targetIndex, 0, movedTag);
+          else targetSession.tags.push(movedTag);
           await setDoc(getDocRef('tags', currentTagConfigKey), { ...currentConfig, sessions });
       }
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#f0f4f8] overflow-hidden">
-      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print">
-        <div className="p-6 border-b border-slate-100"><h2 className="text-xl font-black text-[#002233]">Administração</h2></div>
-        <nav className="flex-1 p-4 space-y-2">
+    <div className="flex h-full w-full bg-slate-50 overflow-hidden">
+      <div className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col no-print z-10 shadow-sm">
+        <div className="p-5 border-b border-slate-100">
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Setup ERP</h2>
+        </div>
+        <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
             {['templates', 'tags', 'tools', 'integrations', 'users', 'changelog', 'config'].map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+                <button 
+                    key={tab} 
+                    onClick={() => setActiveTab(tab)} 
+                    className={`w-full text-left px-5 py-2.5 text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                >
+                    {tab === 'templates' && 'Gerenciar Modelos'}
+                    {tab === 'tags' && 'Dicionário de Dados'}
+                    {tab === 'tools' && 'Módulos do Sistema'}
+                    {tab === 'integrations' && 'Integrações Externas'}
+                    {tab === 'users' && 'Controle de Acessos'}
+                    {tab === 'changelog' && 'Histórico de Versões'}
+                    {tab === 'config' && 'Configurações Gerais'}
+                </button>
             ))}
         </nav>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 bg-[#f0f4f8]">
+      <div className="flex-1 overflow-y-auto p-8 custom-scroll">
         <div className="max-w-5xl mx-auto">
+            {/* Header da aba ativa */}
+            <div className="mb-6">
+                <h2 className="text-xl font-bold text-slate-900 capitalize">{activeTab}</h2>
+                <p className="text-sm text-slate-500">Configuração e manutenção do módulo operacional.</p>
+            </div>
+
             {activeTab === 'templates' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-sm text-slate-500 mb-4">Importar / Editar</h3>
-                        <div className="flex gap-4">
-                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border p-2 rounded text-sm w-1/3">
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Importar Arquivo Estrutural (.html)</h3>
+                        <div className="flex gap-4 items-center">
+                            <select value={targetModule} onChange={(e) => setTargetModule(e.target.value)} className="border border-slate-300 p-2 rounded text-sm w-1/3 outline-none focus:border-blue-500 bg-slate-50">
                                 {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
-                            <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm"/>
+                            <input type="file" accept=".html" onChange={handleFileUpload} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"/>
                         </div>
-                        {/* Sub-template selection for editing */}
                         {toolsConfig[targetModule]?.subTypes && toolsConfig[targetModule].subTypes.length > 0 && (
-                             <div className="flex gap-2 mt-2">
-                                <span className="text-xs font-bold text-slate-500">Sub-tipo:</span>
+                             <div className="flex gap-2 mt-4 items-center">
+                                <span className="text-xs font-semibold text-slate-500">Variante do Módulo:</span>
                                 {toolsConfig[targetModule].subTypes.map(sub => (
-                                    <button 
-                                        key={sub.id} 
-                                        onClick={() => handleEditTemplate(targetModule, sub.id)}
-                                        className="text-xs bg-slate-100 px-2 py-1 rounded hover:bg-blue-100"
-                                    >
+                                    <button key={sub.id} onClick={() => handleEditTemplate(targetModule, sub.id)} className="text-xs bg-slate-100 px-3 py-1.5 rounded-md hover:bg-slate-200 border border-slate-200 transition font-medium text-slate-700">
                                         {sub.label}
                                     </button>
                                 ))}
                              </div>
                         )}
-                        {uploadStatus && <p className="text-xs font-bold text-blue-600 mt-2">{uploadStatus}</p>}
+                        {uploadStatus && <p className="text-xs font-medium text-blue-600 mt-3">{uploadStatus}</p>}
                     </div>
-                    <div className="grid gap-3">
+                    <div className="grid gap-4">
                         {sortTools(toolsConfig).map(([key, tool]) => (
-                            <div key={key} className="bg-white p-4 rounded shadow">
+                            <div key={key} className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
                                 <div className="flex justify-between items-center mb-2">
-                                    <div><p className="font-bold text-sm">{tool.label}</p><p className="text-xs text-slate-400">{templates[key] ? templates[key].name : 'Padrão'}</p></div>
-                                    <button onClick={() => handleEditTemplate(key)} className="bg-[#002233] text-white px-3 py-1 rounded text-xs">Editar Geral</button>
-                                </div>
-                                {tool.subTypes && tool.subTypes.map(sub => (
-                                    <div key={sub.id} className="flex justify-between items-center pl-4 border-l-2 border-slate-100 mt-1">
-                                        <span className="text-xs text-slate-600">{sub.label}</span>
-                                        <button onClick={() => handleEditTemplate(key, sub.id)} className="text-blue-600 text-xs font-bold hover:underline">Editar</button>
+                                    <div>
+                                        <p className="font-semibold text-sm text-slate-900">{tool.label}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Template em uso: {templates[key] ? templates[key].name : 'Layout Padrão do Sistema'}</p>
                                     </div>
-                                ))}
+                                    <button onClick={() => handleEditTemplate(key)} className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-md text-xs transition">Editor de Código</button>
+                                </div>
+                                {tool.subTypes && tool.subTypes.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                        {tool.subTypes.map(sub => (
+                                            <div key={sub.id} className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                                                <span className="text-xs font-medium text-slate-700">{sub.label}</span>
+                                                <button onClick={() => handleEditTemplate(key, sub.id)} className="text-blue-600 text-xs font-semibold hover:text-blue-800 transition">Editar Variante</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -731,18 +734,18 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
             )}
             
             {activeTab === 'tags' && (
-                <div className="flex gap-6 items-start h-full">
-                     <div className="w-1/3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-4 max-h-full overflow-y-auto custom-scroll">
-                        <div className="mb-6 border-b pb-4">
-                            <label className="text-xs font-bold text-slate-500 block mb-2">Módulo</label>
-                            <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setTagSubModuleFilter(''); setEditingTag(null); }} className="w-full border p-2 rounded text-sm mb-4">
+                <div className="flex flex-col lg:flex-row gap-6 items-start h-full">
+                     <div className="w-full lg:w-1/3 bg-white p-5 rounded-lg shadow-sm border border-slate-200 sticky top-0 max-h-[80vh] overflow-y-auto custom-scroll">
+                        <div className="mb-6 border-b border-slate-100 pb-5">
+                            <label className="text-xs font-semibold text-slate-600 block mb-1">Módulo Alvo</label>
+                            <select value={tagModuleFilter} onChange={(e) => { setTagModuleFilter(e.target.value); setTagSubModuleFilter(''); setEditingTag(null); }} className="w-full border border-slate-300 p-2 rounded-md text-sm mb-4 bg-slate-50 focus:border-blue-500 outline-none">
                                 {sortTools(toolsConfig).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                             </select>
 
                             {toolsConfig[tagModuleFilter]?.subTypes?.length > 0 && (
                                 <div className="mb-4">
-                                    <label className="text-xs font-bold text-slate-500 block mb-2">Sub-tipo (Opcional)</label>
-                                    <select value={tagSubModuleFilter} onChange={(e) => setTagSubModuleFilter(e.target.value)} className="w-full border p-2 rounded text-sm">
+                                    <label className="text-xs font-semibold text-slate-600 block mb-1">Sub-tipo (Opcional)</label>
+                                    <select value={tagSubModuleFilter} onChange={(e) => setTagSubModuleFilter(e.target.value)} className="w-full border border-slate-300 p-2 rounded-md text-sm bg-slate-50 focus:border-blue-500 outline-none">
                                         <option value="">Geral (Padrão)</option>
                                         {toolsConfig[tagModuleFilter].subTypes.map(sub => (
                                             <option key={sub.id} value={sub.id}>{sub.label}</option>
@@ -751,68 +754,95 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                 </div>
                             )}
 
-                            <label className="text-xs font-bold text-slate-500 block mb-2">Nova Sessão</label>
-                            <div className="flex gap-2 mb-4"><input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="Nome da Sessão" /><button onClick={handleAddSession} className="bg-green-600 text-white px-3 rounded font-bold text-sm">+</button></div>
-                            <label className="text-xs font-bold text-slate-500 block mb-2">Delimitadores</label>
-                            <div className="flex gap-2 mb-2"><input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /><input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/2 border p-1 rounded text-center" /></div>
-                            <button onClick={handleSaveDelimiters} className="w-full bg-slate-200 text-xs py-1 rounded font-bold">Salvar Símbolos</button>
+                            <label className="text-xs font-semibold text-slate-600 block mb-1 mt-2">Criar Bloco de Dados (Sessão)</label>
+                            <div className="flex gap-2 mb-5">
+                                <input value={newSessionName} onChange={e => setNewSessionName(e.target.value)} className="flex-1 border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500" placeholder="Ex: Dados Pessoais" />
+                                <button onClick={handleAddSession} className="bg-slate-800 text-white px-3 rounded-md font-bold text-sm hover:bg-slate-900">+</button>
+                            </div>
+                            
+                            <label className="text-xs font-semibold text-slate-600 block mb-1">Delimitadores de Tag no HTML</label>
+                            <div className="flex gap-2 mb-2">
+                                <input value={tempDelimiters.prefix} onChange={e => setTempDelimiters({...tempDelimiters, prefix: e.target.value})} className="w-1/2 border border-slate-300 p-1.5 rounded-md text-sm text-center font-mono bg-slate-50" />
+                                <input value={tempDelimiters.suffix} onChange={e => setTempDelimiters({...tempDelimiters, suffix: e.target.value})} className="w-1/2 border border-slate-300 p-1.5 rounded-md text-sm text-center font-mono bg-slate-50" />
+                            </div>
+                            <button onClick={handleSaveDelimiters} className="w-full bg-white border border-slate-300 text-slate-700 text-xs py-1.5 rounded-md font-medium hover:bg-slate-50 transition">Aplicar Símbolos</button>
                         </div>
-                        <form onSubmit={handleSaveTagPanel} className="space-y-3">
-                            <h3 className="font-bold text-sm text-[#002233]">{editingTagId ? 'Editar Tag' : 'Nova Tag'}</h3>
-                            <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border p-2 rounded text-sm" required>
-                                <option value="">Selecione a Sessão...</option>
-                                {(tagsConfig[currentTagConfigKey]?.sessions || []).map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-                            </select>
-                            <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border p-2 rounded text-sm uppercase" placeholder="ID (ex: NOME)" required />
-                            <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Rótulo" required />
-                            <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border p-2 rounded text-sm">
-                                <option value="text">Texto</option>
-                                <option value="date">Data</option>
-                                <option value="email">E-mail</option>
-                                <option value="checkbox">Caixa de Seleção (Múltipla)</option>
-                            </select>
 
-                            {/* Checkbox Options Manager */}
+                        <form onSubmit={handleSaveTagPanel} className="space-y-4">
+                            <h3 className="font-semibold text-sm text-slate-900 border-b border-slate-100 pb-2">{editingTagId ? 'Manutenção de Tag' : 'Cadastro de Nova Tag'}</h3>
+                            <div>
+                                <select value={tagForm.sessionId} onChange={e => setTagForm({...tagForm, sessionId: e.target.value})} className="w-full border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500 bg-white" required>
+                                    <option value="" disabled>Selecionar Bloco...</option>
+                                    {(tagsConfig[currentTagConfigKey]?.sessions || []).map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <input value={tagForm.id} onChange={e => setTagForm({...tagForm, id: e.target.value})} className="w-full border border-slate-300 p-2 rounded-md text-sm font-mono uppercase outline-none focus:border-blue-500" placeholder="IDENTIFICADOR (Ex: NOME_COMPLETO)" required />
+                            </div>
+                            <div>
+                                <input value={tagForm.label} onChange={e => setTagForm({...tagForm, label: e.target.value})} className="w-full border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500" placeholder="Rótulo de Exibição" required />
+                            </div>
+                            <div>
+                                <select value={tagForm.type} onChange={e => setTagForm({...tagForm, type: e.target.value})} className="w-full border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500 bg-white">
+                                    <option value="text">Campo de Texto</option>
+                                    <option value="date">Data (Calendário)</option>
+                                    <option value="email">Endereço de E-mail</option>
+                                    <option value="checkbox">Caixa de Seleção (Múltipla)</option>
+                                </select>
+                            </div>
+
                             {tagForm.type === 'checkbox' && (
-                                <div className="bg-slate-100 p-3 rounded border border-slate-200">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Opções de Checkbox</label>
-                                    <div className="flex gap-2 mb-2">
+                                <div className="bg-slate-50 p-3 rounded-md border border-slate-200">
+                                    <label className="text-xs font-semibold text-slate-600 block mb-2">Opções Disponíveis</label>
+                                    <div className="flex gap-2 mb-3">
                                         <input 
-                                            className="flex-1 border p-1 text-sm rounded outline-none focus:border-[#00DBFF]" 
-                                            placeholder="Nova opção (ex: Sim/Não)" 
+                                            className="flex-1 border border-slate-300 p-1.5 text-sm rounded-md outline-none focus:border-blue-500" 
+                                            placeholder="Descreva a opção..." 
                                             value={newOption} 
                                             onChange={(e) => setNewOption(e.target.value)}
                                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddOption(); } }}
                                         />
-                                        <button type="button" onClick={handleAddOption} className="bg-blue-500 text-white px-3 rounded text-sm font-bold">+</button>
+                                        <button type="button" onClick={handleAddOption} className="bg-slate-800 text-white px-3 rounded-md text-sm font-bold hover:bg-slate-900">+</button>
                                     </div>
-                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scroll pr-1">
                                         {(tagForm.options || []).map((opt, idx) => (
-                                            <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border text-xs">
-                                                <span>{opt}</span>
-                                                <button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 font-bold hover:text-red-700">x</button>
+                                            <div key={idx} className="flex justify-between items-center bg-white px-2 py-1.5 rounded border border-slate-200 text-xs shadow-sm">
+                                                <span className="font-medium text-slate-700">{opt}</span>
+                                                <button type="button" onClick={() => handleRemoveOption(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded font-bold transition">×</button>
                                             </div>
                                         ))}
+                                        {(tagForm.options || []).length === 0 && <span className="text-[10px] text-slate-400 italic">Nenhuma opção cadastrada.</span>}
                                     </div>
                                 </div>
                             )}
 
-                            <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#00DBFF] text-[#002233] font-bold py-2 rounded text-sm">{editingTag ? 'Atualizar' : 'Adicionar'}</button>{editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: '', options: []}) }} className="px-3 bg-slate-200 rounded">X</button>}</div>
+                            <div className="flex gap-2 pt-2">
+                                <button type="submit" className="flex-1 bg-blue-600 text-white font-medium py-2 rounded-md text-sm hover:bg-blue-700 transition shadow-sm">{editingTag ? 'Atualizar Registro' : 'Gravar Tag'}</button>
+                                {editingTag && <button type="button" onClick={() => { setEditingTag(null); setEditingTagId(null); setTagForm({id:'', label:'', type:'text', sessionId: '', options: []}) }} className="px-4 border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 rounded-md transition font-medium">Cancelar</button>}
+                            </div>
                         </form>
                      </div>
-                     <div className="flex-1 space-y-4">
+                     
+                     <div className="flex-1 space-y-5">
                          {(tagsConfig[currentTagConfigKey]?.sessions || []).map((session) => (
                              <div 
                                 key={session.id} 
-                                className={`bg-white rounded-xl shadow-sm border ${session.active ? 'border-slate-200' : 'border-red-200 opacity-75'}`} 
+                                className={`bg-white rounded-lg shadow-sm border ${session.active ? 'border-slate-200' : 'border-slate-200 bg-slate-50 opacity-75'}`} 
                                 onDragOver={onDragOver} 
                                 onDrop={(e) => handleDrop(e, session.id)} 
                             >
-                                 <div className="p-3 bg-slate-50 border-b flex justify-between items-center rounded-t-xl">
-                                     <div className="flex items-center gap-2"><button onClick={() => toggleSessionActive(session.id)} title="Ativar/Desativar" className={`w-3 h-3 rounded-full ${session.active ? 'bg-green-500' : 'bg-red-500'}`}></button><h4 className="font-bold text-sm text-slate-700">{session.title}</h4></div>
-                                     <div className="flex gap-2"><button onClick={() => handleRenameSession(session.id)} className="text-blue-500 text-xs hover:underline">Renomear</button><button onClick={() => handleDeleteSession(session.id)} className="text-red-400 text-xs hover:underline">Excluir</button></div>
+                                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center rounded-t-lg">
+                                     <div className="flex items-center gap-3">
+                                        <button onClick={() => toggleSessionActive(session.id)} title="Alternar status do bloco" className={`w-2.5 h-2.5 rounded-full ${session.active ? 'bg-emerald-500' : 'bg-slate-300'}`}></button>
+                                        <h4 className="font-semibold text-sm text-slate-800 tracking-wide uppercase">{session.title}</h4>
+                                     </div>
+                                     <div className="flex gap-3">
+                                         <button onClick={() => handleRenameSession(session.id)} className="text-slate-500 hover:text-blue-600 text-xs font-medium transition">Renomear</button>
+                                         <span className="text-slate-300">|</span>
+                                         <button onClick={() => handleDeleteSession(session.id)} className="text-slate-500 hover:text-red-600 text-xs font-medium transition">Excluir Bloco</button>
+                                     </div>
                                  </div>
-                                 <div className="divide-y divide-slate-100 min-h-[40px]">
+                                 <div className="divide-y divide-slate-100 min-h-[50px]">
                                      {session.tags.map((tag, idx) => (
                                          <div 
                                             key={tag.id} 
@@ -820,16 +850,22 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
                                             onDragStart={(e) => onDragStart(e, session.id, idx)} 
                                             onDragOver={onDragOver}
                                             onDrop={(e) => handleDrop(e, session.id, idx)} 
-                                            className={`p-3 flex justify-between items-center hover:bg-slate-50 cursor-move group border-b border-transparent hover:border-blue-200 transition-colors ${editingTagId === tag.id ? 'bg-blue-50' : ''}`}
-                                            style={{ opacity: editingTagId === tag.id ? 0.7 : 1 }}
+                                            className={`px-4 py-3 flex justify-between items-center hover:bg-blue-50/50 cursor-move group transition-colors ${editingTagId === tag.id ? 'bg-blue-50 border-l-2 border-blue-500' : 'border-l-2 border-transparent'}`}
                                         >
-                                             <div>
-                                                 <span className="block text-xs font-mono text-blue-600 font-bold">{tempDelimiters.prefix}{tag.id}{tempDelimiters.suffix}</span>
-                                                 <span className="block text-xs text-slate-600">{tag.label} {tag.type === 'checkbox' && '(Checkbox)'}</span>
+                                             <div className="flex flex-col gap-0.5">
+                                                 <div className="flex items-center gap-2">
+                                                     <span className="text-xs font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-semibold">{tempDelimiters.prefix}{tag.id}{tempDelimiters.suffix}</span>
+                                                     {tag.type === 'checkbox' && <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-50 px-1 border border-slate-200 rounded">Lista</span>}
+                                                 </div>
+                                                 <span className="text-sm text-slate-700 font-medium">{tag.label}</span>
                                              </div>
-                                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditTagClick(tag, session.id, idx)} className="text-blue-500 text-xs font-bold">Editar</button><button onClick={() => handleDeleteTag(session.id, idx, currentTagConfigKey)} className="text-red-500 text-xs font-bold">Excluir</button></div>
+                                             <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                 <button onClick={() => handleEditTagClick(tag, session.id, idx)} className="text-blue-600 text-xs font-semibold hover:underline">Modificar</button>
+                                                 <button onClick={() => handleDeleteTag(session.id, idx, currentTagConfigKey)} className="text-red-500 text-xs font-semibold hover:underline">Remover</button>
+                                             </div>
                                          </div>
                                      ))}
+                                     {session.tags.length === 0 && <div className="p-4 text-center text-xs text-slate-400 italic">Arraste tags para cá ou cadastre uma nova neste bloco.</div>}
                                  </div>
                              </div>
                          ))}
@@ -839,26 +875,32 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
             
             {activeTab === 'tools' && (
                 <div className="space-y-6">
-                    <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true, subTypes: [] }); setShowToolModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Gerador</button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="flex justify-end">
+                        <button onClick={() => { setIsEditingTool(false); setToolForm({ id: '', label: '', desc: '', icon: '', active: true, subTypes: [] }); setShowToolModal(true); }} className="bg-blue-600 text-white px-5 py-2 rounded-md font-medium text-sm hover:bg-blue-700 shadow-sm transition">Cadastrar Novo Gerador</button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {sortTools(toolsConfig).map(([key, tool]) => (
-                            <div key={key} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-auto relative group hover:shadow-md transition-shadow">
+                            <div key={key} className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col justify-between h-auto hover:border-slate-300 hover:shadow-md transition-all">
                                 <div>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="p-2 bg-slate-50 rounded-lg"><svg className="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg></div>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${tool.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{tool.active ? 'Ativo' : 'Inativo'}</span>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-10 h-10 bg-slate-100 text-slate-700 rounded border border-slate-200 flex items-center justify-center">
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg>
+                                        </div>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase border ${tool.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{tool.active ? 'Online' : 'Offline'}</span>
                                     </div>
-                                    <h4 className="font-bold text-slate-800 text-lg">{tool.label}</h4>
+                                    <h4 className="font-semibold text-slate-900 text-base">{tool.label}</h4>
+                                    <p className="text-xs text-slate-500 font-mono mt-0.5 mb-2">ID: {key}</p>
+                                    
                                     {tool.subTypes && tool.subTypes.length > 0 && (
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                            {tool.subTypes.map(st => <span key={st.id} className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md">{st.label}</span>)}
+                                        <div className="mb-3 flex flex-wrap gap-1.5">
+                                            {tool.subTypes.map(st => <span key={st.id} className="text-[10px] bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 rounded font-medium">{st.label}</span>)}
                                         </div>
                                     )}
-                                    <p className="text-xs text-slate-500 mt-2 line-clamp-2">{tool.desc}</p>
+                                    <p className="text-sm text-slate-600 line-clamp-2">{tool.desc}</p>
                                 </div>
-                                <div className="flex gap-3 mt-4 pt-3 border-t border-slate-100">
-                                    <button onClick={() => prepareEditTool(key, tool)} className="text-blue-600 text-xs font-bold hover:underline">Editar</button>
-                                    <button onClick={() => handleDeleteTool(key)} className="text-red-500 text-xs font-bold hover:underline">Excluir</button>
+                                <div className="flex gap-4 mt-5 pt-4 border-t border-slate-100 justify-end">
+                                    <button onClick={() => prepareEditTool(key, tool)} className="text-blue-600 text-sm font-medium hover:text-blue-800 transition">Configurar</button>
+                                    <button onClick={() => handleDeleteTool(key)} className="text-red-500 text-sm font-medium hover:text-red-700 transition">Excluir</button>
                                 </div>
                             </div>
                         ))}
@@ -868,38 +910,126 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 
             {activeTab === 'users' && (
                 <div className="space-y-6">
-                    <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-[#00DBFF] text-[#002233] px-4 py-2 rounded font-bold text-sm">+ Novo Usuário</button>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Nome</th><th className="p-4">Email</th><th className="p-4">Role</th><th className="p-4 text-right">Ações</th></tr></thead><tbody>{users.map(u => <tr key={u.id} className="border-b hover:bg-slate-50"><td className="p-4 font-bold text-slate-700">{u.name}</td><td className="p-4 text-slate-500">{u.email}</td><td className="p-4"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold uppercase">{u.role}</span></td><td className="p-4 text-right"><button onClick={() => handleEditUserClick(u)} className="text-blue-600 font-bold text-xs mr-4 hover:underline">Editar</button><button onClick={() => removeUser(u.id)} className="text-red-500 font-bold text-xs hover:underline">Excluir</button></td></tr>)}</tbody></table>
+                    <div className="flex justify-end">
+                        <button onClick={() => { setEditingUserId(null); setUserForm({ email: '', name: '', role: 'user', permissions: [] }); setShowUserModal(true); }} className="bg-blue-600 text-white px-5 py-2 rounded-md font-medium text-sm hover:bg-blue-700 shadow-sm transition">Convidar Usuário</button>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-sm text-left border-collapse">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="px-5 py-3 font-semibold text-slate-600 uppercase text-xs tracking-wider">Colaborador</th>
+                                    <th className="px-5 py-3 font-semibold text-slate-600 uppercase text-xs tracking-wider">E-mail Corporativo</th>
+                                    <th className="px-5 py-3 font-semibold text-slate-600 uppercase text-xs tracking-wider">Perfil de Acesso</th>
+                                    <th className="px-5 py-3 text-right font-semibold text-slate-600 uppercase text-xs tracking-wider">Gestão</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {users.map(u => (
+                                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-5 py-4 font-medium text-slate-900">{u.name}</td>
+                                        <td className="px-5 py-4 text-slate-600">{u.email}</td>
+                                        <td className="px-5 py-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-semibold uppercase border ${u.role === 'admin' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{u.role}</span>
+                                        </td>
+                                        <td className="px-5 py-4 text-right">
+                                            <button onClick={() => handleEditUserClick(u)} className="text-blue-600 font-medium text-sm mr-4 hover:underline">Acessos</button>
+                                            <button onClick={() => removeUser(u.id)} className="text-red-500 font-medium text-sm hover:underline">Revogar</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
 
             {activeTab === 'changelog' && (
                  <div className="space-y-6">
-                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                         <div className="grid grid-cols-3 gap-4 mb-4"><input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Versão" className="border p-2 rounded text-sm"/><input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border p-2 rounded text-sm"/><input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título" className="border p-2 rounded text-sm"/></div><textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descrição" className="w-full border p-2 rounded text-sm h-20 mb-4"/><button onClick={handleSaveLog} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded text-sm font-bold">{editingLogId ? 'Atualizar' : 'Adicionar'}</button></div>
-                     <div className="space-y-3">{(changelog || []).map(log => (<div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-start"><div><div className="flex items-center gap-3 mb-1"><span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">v{log.version}</span><span className="text-xs text-slate-400 font-bold uppercase">{log.date}</span></div><h4 className="font-bold text-slate-700">{log.title}</h4><p className="text-sm text-slate-500 mt-1">{log.content}</p></div><div className="flex gap-3"><button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-500 text-xs font-bold hover:underline">Editar</button><button onClick={() => handleDeleteLog(log.id)} className="text-red-500 text-xs font-bold hover:underline">Excluir</button></div></div>))}</div>
+                     <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                         <h3 className="text-sm font-semibold text-slate-800 mb-4">Registro de Atualização</h3>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <input value={newLog.version} onChange={e => setNewLog({...newLog, version: e.target.value})} placeholder="Numeração (Ex: 5.0.1)" className="border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500"/>
+                            <input type="date" value={newLog.date} onChange={e => setNewLog({...newLog, date: e.target.value})} className="border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500 text-slate-600"/>
+                            <input value={newLog.title} onChange={e => setNewLog({...newLog, title: e.target.value})} placeholder="Título da Atualização" className="border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500"/>
+                         </div>
+                         <textarea value={newLog.content} onChange={e => setNewLog({...newLog, content: e.target.value})} placeholder="Descreva os itens técnicos e operacionais alterados nesta versão..." className="w-full border border-slate-300 p-3 rounded-md text-sm h-24 mb-4 outline-none focus:border-blue-500 resize-none"/>
+                         <div className="flex justify-end">
+                            <button onClick={handleSaveLog} className="bg-blue-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">{editingLogId ? 'Sobrescrever Registro' : 'Gravar Histórico'}</button>
+                         </div>
+                     </div>
+                     
+                     <div className="space-y-4">
+                        {(changelog || []).map(log => (
+                            <div key={log.id} className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex justify-between items-start">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <span className="bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded-md">v{log.version}</span>
+                                        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">{log.date}</span>
+                                    </div>
+                                    <h4 className="font-semibold text-slate-900 text-base">{log.title}</h4>
+                                    <p className="text-sm text-slate-600 mt-1.5 leading-relaxed max-w-3xl">{log.content}</p>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => { setNewLog(log); setEditingLogId(log.id); }} className="text-blue-600 text-xs font-medium border border-blue-200 bg-blue-50 px-3 py-1 rounded hover:bg-blue-100 transition">Editar</button>
+                                    <button onClick={() => handleDeleteLog(log.id)} className="text-red-600 text-xs font-medium border border-red-200 bg-red-50 px-3 py-1 rounded hover:bg-red-100 transition">Excluir</button>
+                                </div>
+                            </div>
+                        ))}
+                     </div>
                  </div>
             )}
 
             {activeTab === 'integrations' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-lg text-slate-700 mb-4">{editingCepMapId ? 'Editar Integração' : 'Busca Automática de Endereço (ViaCEP)'}</h3>
-                        <p className="text-xs text-slate-500 mb-4">Configure quais tags devem ser preenchidas automaticamente quando um CEP for digitado. Use os IDs das tags (ex: RUA_DESTINO).</p>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div><label className="block text-xs font-bold text-slate-500">Tag de Gatilho (CEP)</label><input value={cepMapForm.triggerTag} onChange={e => setCepMapForm({...cepMapForm, triggerTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CEP_DESTINO"/></div>
-                            <div><label className="block text-xs font-bold text-slate-500">Tag de Rua (Logradouro)</label><input value={cepMapForm.streetTag} onChange={e => setCepMapForm({...cepMapForm, streetTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: RUA_DESTINO"/></div>
-                            <div><label className="block text-xs font-bold text-slate-500">Tag de Bairro</label><input value={cepMapForm.districtTag} onChange={e => setCepMapForm({...cepMapForm, districtTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: BAIRRO_DESTINO"/></div>
-                            <div><label className="block text-xs font-bold text-slate-500">Tag de Cidade</label><input value={cepMapForm.cityTag} onChange={e => setCepMapForm({...cepMapForm, cityTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: CIDADE_DESTINO"/></div>
-                            <div><label className="block text-xs font-bold text-slate-500">Tag de Estado (UF)</label><input value={cepMapForm.stateTag} onChange={e => setCepMapForm({...cepMapForm, stateTag: e.target.value.toUpperCase()})} className="w-full border p-2 rounded text-sm uppercase" placeholder="Ex: UF_DESTINO"/></div>
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-8 h-8 rounded bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            </div>
+                            <h3 className="font-semibold text-lg text-slate-900">{editingCepMapId ? 'Manutenção de Endpoint' : 'Motor de Busca (ViaCEP)'}</h3>
                         </div>
-                        <div className="flex gap-2"><button onClick={handleSaveCepMapping} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">{editingCepMapId ? 'Atualizar Regra' : 'Adicionar Regra'}</button>{editingCepMapId && <button onClick={() => { setEditingCepMapId(null); setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' }) }} className="bg-slate-200 px-4 py-2 rounded font-bold text-sm">Cancelar</button>}</div>
+                        <p className="text-sm text-slate-500 mb-6 pb-4 border-b border-slate-100">Defina o mapeamento de variáveis locais para injeção autônoma de dados via API dos Correios.</p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Gatilho de Requisição (Tag CEP)</label>
+                                <input value={cepMapForm.triggerTag} onChange={e => setCepMapForm({...cepMapForm, triggerTag: e.target.value.toUpperCase()})} className="w-full lg:w-1/2 border border-slate-300 p-2.5 rounded-md text-sm font-mono uppercase bg-slate-50 focus:border-blue-500 outline-none" placeholder="Ex: CEP_COLABORADOR"/>
+                            </div>
+                            <div><label className="block text-xs font-semibold text-slate-600 mb-1">Injetar em Logradouro</label><input value={cepMapForm.streetTag} onChange={e => setCepMapForm({...cepMapForm, streetTag: e.target.value.toUpperCase()})} className="w-full border border-slate-300 p-2 rounded-md text-sm uppercase font-mono focus:border-blue-500 outline-none" placeholder="Ex: RUA_DESTINO"/></div>
+                            <div><label className="block text-xs font-semibold text-slate-600 mb-1">Injetar em Bairro</label><input value={cepMapForm.districtTag} onChange={e => setCepMapForm({...cepMapForm, districtTag: e.target.value.toUpperCase()})} className="w-full border border-slate-300 p-2 rounded-md text-sm uppercase font-mono focus:border-blue-500 outline-none" placeholder="Ex: BAIRRO_DESTINO"/></div>
+                            <div><label className="block text-xs font-semibold text-slate-600 mb-1">Injetar em Município</label><input value={cepMapForm.cityTag} onChange={e => setCepMapForm({...cepMapForm, cityTag: e.target.value.toUpperCase()})} className="w-full border border-slate-300 p-2 rounded-md text-sm uppercase font-mono focus:border-blue-500 outline-none" placeholder="Ex: CIDADE_DESTINO"/></div>
+                            <div><label className="block text-xs font-semibold text-slate-600 mb-1">Injetar em Unidade Federativa (UF)</label><input value={cepMapForm.stateTag} onChange={e => setCepMapForm({...cepMapForm, stateTag: e.target.value.toUpperCase()})} className="w-full border border-slate-300 p-2 rounded-md text-sm uppercase font-mono focus:border-blue-500 outline-none" placeholder="Ex: ESTADO_DESTINO"/></div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={handleSaveCepMapping} className="bg-slate-800 text-white px-6 py-2 rounded-md font-medium text-sm hover:bg-slate-900 transition">{editingCepMapId ? 'Atualizar Mapeamento' : 'Registrar Automação'}</button>
+                            {editingCepMapId && <button onClick={() => { setEditingCepMapId(null); setCepMapForm({ triggerTag: '', streetTag: '', districtTag: '', cityTag: '', stateTag: '' }) }} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md font-medium text-sm hover:bg-slate-50 transition">Cancelar</button>}
+                        </div>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                         <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Gatilho (CEP)</th><th className="p-3">Rua</th><th className="p-3">Bairro</th><th className="p-3">Cidade/UF</th><th className="p-3 text-right">Ação</th></tr></thead>
-                             <tbody>{(cepMappings || []).map(map => (<tr key={map.id} className="border-b hover:bg-slate-50"><td className="p-3 font-bold">{map.triggerTag}</td><td className="p-3 text-slate-500">{map.streetTag || '-'}</td><td className="p-3 text-slate-500">{map.districtTag || '-'}</td><td className="p-3 text-slate-500">{map.cityTag}/{map.stateTag}</td><td className="p-3 text-right"><button onClick={() => handleEditCepMapping(map)} className="text-blue-500 font-bold mr-3">Editar</button><button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-bold">X</button></td></tr>))}</tbody>
+                    
+                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                         <table className="w-full text-sm text-left border-collapse">
+                             <thead className="bg-slate-50 border-b border-slate-200">
+                                 <tr>
+                                     <th className="px-4 py-3 font-semibold text-slate-600 text-xs uppercase">Tag Gatilho</th>
+                                     <th className="px-4 py-3 font-semibold text-slate-600 text-xs uppercase">Retorno: Endereço</th>
+                                     <th className="px-4 py-3 font-semibold text-slate-600 text-xs uppercase">Retorno: Geo</th>
+                                     <th className="px-4 py-3 text-right font-semibold text-slate-600 text-xs uppercase">Controle</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="divide-y divide-slate-100">
+                                 {(cepMappings || []).map(map => (
+                                     <tr key={map.id} className="hover:bg-slate-50 transition-colors">
+                                         <td className="px-4 py-3 font-mono font-semibold text-slate-900">{map.triggerTag}</td>
+                                         <td className="px-4 py-3 text-slate-600 text-xs font-mono">{map.streetTag || '-'} <br/> {map.districtTag || '-'}</td>
+                                         <td className="px-4 py-3 text-slate-600 text-xs font-mono">{map.cityTag} / {map.stateTag}</td>
+                                         <td className="px-4 py-3 text-right">
+                                             <button onClick={() => handleEditCepMapping(map)} className="text-blue-600 font-medium text-sm mr-4 hover:underline">Revisar</button>
+                                             <button onClick={() => handleDeleteCepMapping(map.id)} className="text-red-500 font-medium text-sm hover:underline">Remover</button>
+                                         </td>
+                                     </tr>
+                                 ))}
+                                 {(cepMappings || []).length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400 text-sm">Nenhum mapeamento ativo.</td></tr>}
+                             </tbody>
                          </table>
                     </div>
                 </div>
@@ -907,76 +1037,102 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
             
             {activeTab === 'config' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-lg text-slate-700 mb-4">Configurações Gerais</h3>
-                        <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-slate-50">
-                            <input type="checkbox" checked={configDevBypass} onChange={(e) => setConfigDevBypass(e.target.checked)} className="w-5 h-5 rounded text-[#00DBFF] focus:ring-[#00DBFF]" />
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <h3 className="font-semibold text-lg text-slate-900 mb-5 border-b border-slate-100 pb-2">Ambiente & Operação</h3>
+                        <label className="flex items-start gap-4 p-4 border border-slate-200 rounded-md cursor-pointer hover:bg-slate-50 transition bg-white">
+                            <div className="mt-0.5">
+                                <input type="checkbox" checked={configDevBypass} onChange={(e) => setConfigDevBypass(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                            </div>
                             <div>
-                                <span className="block font-bold text-slate-800">Ativar Login de Desenvolvedor (Bypass)</span>
-                                <span className="text-xs text-slate-500">Permite acesso local sem autenticação real (útil para testes offline).</span>
+                                <span className="block font-semibold text-slate-900">Acesso Bypass (Desenvolvedor)</span>
+                                <span className="text-sm text-slate-500 block mt-1 leading-relaxed">Libera no painel de autenticação um botão para contornar a validação padrão. Utilizado exclusivamente para suporte emergencial ou ambiente de homologação offline.</span>
                             </div>
                         </label>
-                        <div className="mt-4"><button onClick={handleSaveConfig} className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded font-bold text-sm">Salvar Configurações</button></div>
+                        <div className="mt-6 flex justify-end">
+                            <button onClick={handleSaveConfig} className="bg-blue-600 text-white px-6 py-2 rounded-md font-medium text-sm hover:bg-blue-700 transition shadow-sm">Aplicar Configuração</button>
+                        </div>
                     </div>
                 </div>
             )}
         </div>
       </div>
       
-      {/* Editor & Tool Modals (Mantidos iguais) */}
+      {/* Editor & User Modals */}
       {editingTemplate && (
-            <div className="fixed inset-0 bg-[#00121a] z-50 flex flex-col">
-                <div className="bg-[#1e1e1e] text-white p-3 flex justify-between border-b border-[#333]">
-                    <span className="font-bold">Editor HTML ({toolsConfig[editingTemplate]?.label})</span>
-                    <div className="flex gap-2"><button onClick={() => setEditingTemplate(null)} className="text-slate-400 text-sm">Cancelar</button><button onClick={handleSaveEditedTemplate} className="bg-[#007acc] px-3 py-1 rounded text-sm">Salvar</button></div>
-                </div>
-                <div className="flex-1 flex overflow-hidden">
-                    <div className="w-80 bg-[#252526] border-r border-[#333] p-2 overflow-y-auto">
-                        {editorEditingTagId ? (
-                             <div className="p-3 bg-[#333] rounded mb-4 border border-blue-500/50">
-                                <h4 className="text-xs font-bold text-blue-400 mb-2">Editar Tag</h4>
-                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.id} onChange={e => setEditorTagForm({...editorTagForm, id: e.target.value.toUpperCase()})} placeholder="ID" />
-                                <input className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.label} onChange={e => setEditorTagForm({...editorTagForm, label: e.target.value})} placeholder="Label" />
-                                <select className="w-full bg-[#1e1e1e] text-white text-xs p-1 mb-2 border border-gray-600 rounded" value={editorTagForm.type} onChange={e => setEditorTagForm({...editorTagForm, type: e.target.value})}>
-                                    <option value="text">Texto</option><option value="date">Data</option><option value="email">Email</option>
-                                </select>
-                                <div className="flex gap-2">
-                                    <button onClick={handleSaveTagInEditor} className="bg-blue-600 text-white px-2 py-1 rounded text-xs flex-1">Salvar</button>
-                                    <button onClick={() => setEditorEditingTagId(null)} className="bg-gray-600 text-white px-2 py-1 rounded text-xs">Cancelar</button>
-                                </div>
-                             </div>
-                        ) : (
-                             <div className="mb-4">
-                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Tags do Módulo</p>
-                                {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
-                                    <div key={s.id} className="mb-4">
-                                        <p className="text-[10px] text-[#00DBFF] font-bold uppercase mb-1">{s.title}</p>
-                                        {s.tags.map(tag => (
-                                            <div key={tag.id} className="group flex items-center justify-between px-2 py-1 hover:bg-[#37373d] rounded mb-1">
-                                                <button onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="text-left flex-1 min-w-0">
-                                                    <span className="text-gray-300 text-xs block truncate">{tag.label}</span>
-                                                    <span className="text-[#00DBFF] opacity-50 text-[10px]">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
-                                                </button>
-                                                <div className="hidden group-hover:flex gap-1">
-                                                    <button onClick={() => prepareEditTagInEditor(tag)} className="text-blue-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                                                    <button onClick={() => handleDeleteTagInEditor(tag.id)} className="text-red-400 hover:text-white p-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <div className="fixed inset-0 bg-slate-900/95 z-[60] flex flex-col backdrop-blur-sm p-4 md:p-8">
+                <div className="bg-white text-slate-800 rounded-t-xl overflow-hidden flex-1 flex flex-col shadow-2xl max-w-[1600px] mx-auto w-full">
+                    <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center border-b border-slate-700">
+                        <div className="flex items-center gap-3">
+                            <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                            <span className="font-semibold tracking-wide">Ambiente de Desenvolvimento HTML <span className="opacity-50 text-sm ml-2 font-normal">({toolsConfig[editingTemplate]?.label || editingTemplate})</span></span>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setEditingTemplate(null)} className="text-slate-300 hover:text-white px-4 py-1.5 text-sm font-medium transition">Descartar</button>
+                            <button onClick={handleSaveEditedTemplate} className="bg-blue-600 hover:bg-blue-500 px-5 py-1.5 rounded-md text-sm font-medium transition shadow-sm">Publicar Layout</button>
+                        </div>
+                    </div>
+                    <div className="flex-1 flex overflow-hidden bg-slate-50">
+                        <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10">
+                            <div className="p-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider text-center">Dicionário Ativo</div>
+                            <div className="p-3 overflow-y-auto custom-scroll flex-1">
+                                {editorEditingTagId ? (
+                                    <div className="p-4 bg-blue-50 rounded-md border border-blue-200 shadow-sm mb-4">
+                                        <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Edição Rápida</h4>
+                                        <input className="w-full bg-white text-slate-900 text-sm p-2 mb-2 border border-blue-200 rounded outline-none focus:border-blue-500 font-mono uppercase" value={editorTagForm.id} onChange={e => setEditorTagForm({...editorTagForm, id: e.target.value.toUpperCase()})} placeholder="ID" />
+                                        <input className="w-full bg-white text-slate-900 text-sm p-2 mb-2 border border-blue-200 rounded outline-none focus:border-blue-500" value={editorTagForm.label} onChange={e => setEditorTagForm({...editorTagForm, label: e.target.value})} placeholder="Rótulo" />
+                                        <select className="w-full bg-white text-slate-900 text-sm p-2 mb-3 border border-blue-200 rounded outline-none focus:border-blue-500" value={editorTagForm.type} onChange={e => setEditorTagForm({...editorTagForm, type: e.target.value})}>
+                                            <option value="text">Texto</option><option value="date">Data</option><option value="email">Email</option>
+                                        </select>
+                                        <div className="flex gap-2">
+                                            <button onClick={handleSaveTagInEditor} className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium flex-1 hover:bg-blue-700">Confirmar</button>
+                                            <button onClick={() => setEditorEditingTagId(null)} className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded text-xs font-medium hover:bg-slate-50">Sair</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {(tagsConfig[editingTemplate]?.sessions || []).map(s => (
+                                            <div key={s.id}>
+                                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5 pb-1 border-b border-slate-100">{s.title}</p>
+                                                <div className="space-y-1">
+                                                    {s.tags.map(tag => (
+                                                        <div key={tag.id} className="group flex items-center justify-between px-2 py-1.5 hover:bg-slate-100 rounded-md transition-colors border border-transparent hover:border-slate-200">
+                                                            <button onClick={() => insertAtCursor(`${delimiters.prefix}${tag.id}${delimiters.suffix}`)} className="text-left flex-1 min-w-0" title="Clique para inserir no código">
+                                                                <span className="text-slate-800 text-xs font-medium block truncate">{tag.label}</span>
+                                                                <span className="text-blue-600 font-mono text-[10px] opacity-80 block">{delimiters.prefix}{tag.id}{delimiters.suffix}</span>
+                                                            </button>
+                                                            <div className="hidden group-hover:flex gap-1 bg-slate-100 pl-1 rounded">
+                                                                <button onClick={() => prepareEditTagInEditor(tag)} className="text-slate-400 hover:text-blue-600 p-1 transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                                                <button onClick={() => handleDeleteTagInEditor(tag.id)} className="text-slate-400 hover:text-red-500 p-1 transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                ))}
-                             </div>
-                        )}
-                         <div className="border-t border-[#333] pt-4 mt-2">
-                             <input className="bg-[#3c3c3c] text-white text-xs p-1 rounded w-full mb-1" placeholder="Nova Tag" id="quickTagInput" onKeyDown={(e) => { if(e.key === 'Enter') handleCreateCustomTagInEditor(e.target.value); }} />
-                             <p className="text-[9px] text-gray-500">Enter para criar</p>
+                                )}
+                            </div>
+                            <div className="p-3 bg-slate-50 border-t border-slate-200">
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">Criação Rápida (Texto)</label>
+                                <input className="bg-white border border-slate-300 text-slate-900 text-xs p-2 rounded-md w-full outline-none focus:border-blue-500 transition" placeholder="Digite a TAG e pressione Enter" onKeyDown={(e) => { if(e.key === 'Enter') { handleCreateCustomTagInEditor(e.target.value); e.target.value = ''; } }} />
+                            </div>
                         </div>
-                    </div>
-                    <textarea ref={textAreaRef} className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} spellCheck="false" />
-                    <div className="w-[35%] bg-white border-l border-gray-300 flex flex-col">
-                        <div className="bg-gray-100 p-2 text-xs font-bold text-gray-500 border-b text-center">Preview</div>
-                        <div className="flex-1 p-4 overflow-y-auto bg-gray-200">
-                             <div className="bg-white shadow-lg mx-auto" style={{ width: '210mm', height: '297mm', transform: 'scale(0.6)', transformOrigin: 'top center' }}><SafePreview html={htmlContent} /></div>
+                        <div className="flex-1 flex flex-col relative bg-[#1e1e1e]">
+                             <div className="bg-[#2d2d2d] px-4 py-1.5 text-[#cccccc] text-xs font-mono border-b border-[#404040] flex items-center justify-between">
+                                 <span>source.html</span>
+                                 <span className="text-[10px] opacity-50">UTF-8</span>
+                             </div>
+                             <textarea ref={textAreaRef} className="flex-1 w-full bg-transparent text-[#d4d4d4] font-mono text-sm p-4 outline-none resize-none custom-scroll leading-relaxed" value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} spellCheck="false" />
+                        </div>
+                        <div className="w-[45%] bg-slate-200 border-l border-slate-300 flex flex-col z-10 shadow-xl">
+                            <div className="bg-white p-2 text-xs font-bold text-slate-600 border-b border-slate-200 flex items-center justify-center shadow-sm">
+                                Visualização de Impressão (Live Preview)
+                            </div>
+                            <div className="flex-1 p-4 overflow-hidden relative">
+                                 <div className="absolute inset-0 overflow-auto custom-scroll p-4 pb-20">
+                                     <SafePreview html={htmlContent} />
+                                 </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -984,36 +1140,108 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
       )}
 
       {showToolModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fadeIn">
-            <div className="bg-white p-8 rounded-xl shadow-2xl w-96 transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
-                <h3 className="font-bold text-xl text-[#002233] mb-6">{isEditingTool ? 'Editar Gerador' : 'Novo Gerador'}</h3>
-                <form onSubmit={handleSaveTool} className="space-y-4">
-                    <div><label className="block text-xs font-bold text-slate-500 mb-1">ID Único</label><input value={toolForm.id} onChange={e => setToolForm({...toolForm, id: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm bg-slate-50" placeholder="ex: notebooks" disabled={isEditingTool} required /></div>
-                    <div><label className="block text-xs font-bold text-slate-500 mb-1">Nome</label><input value={toolForm.label} onChange={e => setToolForm({...toolForm, label: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm" required /></div>
-                    <div><label className="block text-xs font-bold text-slate-500 mb-1">Descrição</label><input value={toolForm.desc} onChange={e => setToolForm({...toolForm, desc: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm" /></div>
-                    <div><label className="block text-xs font-bold text-slate-500 mb-1">Ícone SVG (Path)</label><textarea value={toolForm.icon} onChange={e => setToolForm({...toolForm, icon: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm h-16 font-mono text-xs" /></div>
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg transform transition-all border border-slate-200 max-h-[90vh] overflow-y-auto custom-scroll">
+                <h3 className="font-bold text-xl text-slate-900 mb-6 pb-4 border-b border-slate-100">{isEditingTool ? 'Configuração do Gerador' : 'Cadastro de Novo Gerador'}</h3>
+                <form onSubmit={handleSaveTool} className="space-y-5">
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Identificador do Módulo no Sistema</label>
+                        <input value={toolForm.id} onChange={e => setToolForm({...toolForm, id: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm font-mono bg-slate-50 outline-none focus:border-blue-500 disabled:opacity-50" placeholder="ex: termo_entrega_notebook" disabled={isEditingTool} required />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome de Exibição</label>
+                        <input value={toolForm.label} onChange={e => setToolForm({...toolForm, label: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm outline-none focus:border-blue-500" required />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Descrição Operacional</label>
+                        <input value={toolForm.desc} onChange={e => setToolForm({...toolForm, desc: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                        <label className="flex justify-between items-end mb-1.5">
+                            <span className="text-xs font-semibold text-slate-600">Representação Gráfica (Ícone SVG)</span>
+                            <a href="https://heroicons.com/" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline">Pegar do Heroicons</a>
+                        </label>
+                        <textarea value={toolForm.icon} onChange={e => setToolForm({...toolForm, icon: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm h-16 font-mono text-xs outline-none focus:border-blue-500 resize-none bg-slate-50" placeholder="Insira apenas o atributo 'd' do path..." />
+                    </div>
                     
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Sub-Geradores (Tipos)</label>
-                        <div className="flex gap-2 mb-2">
-                             <input className="w-1/3 border p-1 rounded text-xs" placeholder="ID (ex: entrega)" value={newSubType.id} onChange={e => setNewSubType({...newSubType, id: e.target.value})} />
-                             <input className="flex-1 border p-1 rounded text-xs" placeholder="Nome (ex: Termo de Entrega)" value={newSubType.label} onChange={e => setNewSubType({...newSubType, label: e.target.value})} />
-                             <button type="button" onClick={handleAddSubType} className="bg-green-500 text-white px-2 rounded text-xs font-bold">+</button>
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-3">Variações do Documento (Sub-tipos)</label>
+                        <div className="flex gap-2 mb-4">
+                             <input className="w-1/3 border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500 font-mono" placeholder="ID Interno" value={newSubType.id} onChange={e => setNewSubType({...newSubType, id: e.target.value.toLowerCase().replace(/\s/g,'_')})} />
+                             <input className="flex-1 border border-slate-300 p-2 rounded-md text-sm outline-none focus:border-blue-500" placeholder="Rótulo de Exibição" value={newSubType.label} onChange={e => setNewSubType({...newSubType, label: e.target.value})} onKeyDown={(e)=>{if(e.key==='Enter'){e.preventDefault(); handleAddSubType();}}}/>
+                             <button type="button" onClick={handleAddSubType} className="bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-md text-sm font-bold transition">+</button>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                              {(toolForm.subTypes || []).map((sub, idx) => (
-                                 <div key={idx} className="flex justify-between items-center text-xs bg-white p-2 rounded border">
-                                     <span><b>{sub.id}</b>: {sub.label}</span>
-                                     <button type="button" onClick={() => handleRemoveSubType(idx)} className="text-red-500 font-bold">x</button>
+                                 <div key={idx} className="flex justify-between items-center text-sm bg-white p-2.5 rounded-md border border-slate-200 shadow-sm">
+                                     <span><span className="font-mono text-slate-500 text-xs mr-2">{sub.id}</span> <span className="font-semibold text-slate-800">{sub.label}</span></span>
+                                     <button type="button" onClick={() => handleRemoveSubType(idx)} className="text-red-500 font-medium hover:bg-red-50 px-2 py-1 rounded transition">Remover</button>
                                  </div>
                              ))}
+                             {(toolForm.subTypes || []).length === 0 && <p className="text-xs text-slate-400 italic">Módulo de documento único. Não requer sub-tipos.</p>}
                         </div>
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm cursor-pointer mt-2"><input type="checkbox" checked={toolForm.active} onChange={e => setToolForm({...toolForm, active: e.target.checked})} className="rounded text-[#00DBFF]" /> <span className="font-bold text-slate-700">Ativo</span></label>
-                    <div className="flex justify-end gap-3 mt-6"><button type="button" onClick={() => setShowToolModal(false)} className="text-slate-500 font-bold text-sm">Cancelar</button><button type="submit" className="bg-[#00DBFF] text-[#002233] px-6 py-2 rounded-lg font-bold text-sm">Salvar</button></div>
+                    <div className="pt-2">
+                        <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-md cursor-pointer hover:bg-slate-50 transition bg-white">
+                            <input type="checkbox" checked={toolForm.active} onChange={e => setToolForm({...toolForm, active: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600" /> 
+                            <span className="font-semibold text-slate-900">Disponibilizar Módulo na Produção</span>
+                        </label>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                        <button type="button" onClick={() => setShowToolModal(false)} className="bg-white border border-slate-300 text-slate-700 px-5 py-2 rounded-md font-medium text-sm hover:bg-slate-50 transition">Cancelar</button>
+                        <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-md font-medium text-sm hover:bg-blue-700 transition shadow-sm">Salvar Módulo</button>
+                    </div>
                 </form>
             </div>
+          </div>
+      )}
+
+      {showUserModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md transform transition-all border border-slate-200">
+                  <h3 className="font-bold text-xl text-slate-900 mb-6 pb-4 border-b border-slate-100">{editingUserId ? 'Credenciais de Acesso' : 'Convite de Colaborador'}</h3>
+                  <form onSubmit={handleSaveUser} className="space-y-5">
+                      <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome Completo</label>
+                          <input value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm outline-none focus:border-blue-500" required />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail Corporativo</label>
+                          <input type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm outline-none focus:border-blue-500" required />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Hierarquia do Sistema</label>
+                          <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-md text-sm outline-none focus:border-blue-500 bg-white">
+                              <option value="user">Colaborador Padrão (Leitura e Operação)</option>
+                              <option value="admin">Administrador (Setup e Manutenção)</option>
+                          </select>
+                      </div>
+                      
+                      {userForm.role === 'user' && (
+                          <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                              <label className="block text-xs font-bold text-slate-700 uppercase mb-3">Concessão por Módulo</label>
+                              <div className="space-y-2 max-h-40 overflow-y-auto custom-scroll pr-2">
+                                  {sortTools(toolsConfig).map(([k, t]) => (
+                                      <label key={k} className="flex items-center gap-3 p-2 bg-white rounded border border-slate-200 cursor-pointer hover:bg-blue-50 transition">
+                                          <input type="checkbox" checked={userForm.permissions?.includes(k)} onChange={(e) => {
+                                              const newPerms = e.target.checked ? [...(userForm.permissions||[]), k] : (userForm.permissions||[]).filter(p=>p!==k);
+                                              setUserForm({...userForm, permissions: newPerms});
+                                          }} className="rounded text-blue-600 focus:ring-blue-500"/>
+                                          <span className="text-sm font-medium text-slate-700">{t.label}</span>
+                                      </label>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                          <button type="button" onClick={() => setShowUserModal(false)} className="bg-white border border-slate-300 text-slate-700 px-5 py-2 rounded-md font-medium text-sm hover:bg-slate-50 transition">Cancelar</button>
+                          <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-md font-medium text-sm hover:bg-blue-700 transition shadow-sm">Aplicar Perfil</button>
+                      </div>
+                  </form>
+              </div>
           </div>
       )}
     </div>
@@ -1035,7 +1263,6 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
     activeSessions.forEach(session => {
         session.tags.forEach(tag => {
             if (initialData[tag.id] === undefined) {
-                // Se for checkbox, inicializa como array vazio
                 if (tag.type === 'checkbox') initialData[tag.id] = [];
                 else initialData[tag.id] = '';
             }
@@ -1048,7 +1275,6 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
   const handleChange = async (tag, value) => {
     setFormData(prev => ({ ...prev, [tag.id]: value }));
     
-    // Check for CEP trigger
     if (value.replace(/\D/g, '').length === 8 && cepMappings) {
         const mapping = cepMappings.find(m => m.triggerTag === tag.id);
         if (mapping) {
@@ -1064,7 +1290,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
                         [mapping.stateTag]: data.uf || ''
                     }));
                 }
-            } catch (error) { console.error("Erro CEP:", error); }
+            } catch (error) { console.error("Erro no motor ViaCEP:", error); }
         }
     }
   };
@@ -1085,13 +1311,8 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
       sessions.forEach(session => {
           session.tags.forEach(tag => {
               let val = formData[tag.id];
-              
-              if (Array.isArray(val)) {
-                  val = val.join(', '); // Formata array como string para exibição
-              }
-              
+              if (Array.isArray(val)) val = val.join(', '); 
               val = val || '';
-
               if(tag.id === 'DATA' && val && !Array.isArray(val) && val.includes('-')) val = val.split('-').reverse().join('/');
               const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
               html = html.split(tagPattern).join(val);
@@ -1103,51 +1324,56 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
   const handlePrint = () => {
       const printContent = renderDocument();
       const printWindow = window.open('', '_blank');
-      printWindow.document.write(`<html><head><title>Imprimir</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
+      printWindow.document.write(`<html><head><title>Documento Operacional</title><style>@page { size: A4; margin: 0; } body { margin: 0; padding: 0; width: 210mm; height: 297mm; font-family: Arial, sans-serif; } img { max-width: 100%; height: auto; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; } table { border-collapse: collapse; width: 100%; }</style></head><body>${printContent}</body></html>`);
       printWindow.document.close();
       printWindow.focus();
       setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full w-full bg-[#f0f4f8]">
-      <div className="w-full md:w-[400px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-lg">
-        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-          <h2 className="font-bold text-[#002233]">Preenchimento</h2>
-          <button onClick={handlePrint} className="bg-[#002233] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-700 transition flex items-center gap-2">IMPRIMIR</button>
+    <div className="flex flex-col md:flex-row h-full w-full bg-slate-50 border-t border-slate-200">
+      <div className="w-full md:w-[420px] bg-white border-r border-slate-200 flex flex-col z-10 no-print shadow-sm">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+          <h2 className="font-bold text-slate-900 tracking-tight">Inserção de Dados</h2>
+          <button onClick={handlePrint} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Finalizar & Imprimir
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-6">
-            {sessions.length === 0 && <p className="text-center text-slate-400 mt-10">Nenhuma sessão configurada.</p>}
-            {sessions.map(session => (
-                <div key={session.id} className="border-b border-slate-100 pb-4 last:border-0">
-                    <h3 className="text-sm font-black text-[#00DBFF] uppercase tracking-wide mb-3 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 bg-[#00DBFF] rounded-full"></span>
+        <div className="flex-1 overflow-y-auto p-6 custom-scroll space-y-8 bg-slate-50/50">
+            {sessions.length === 0 && <p className="text-center text-slate-500 mt-10 p-6 bg-slate-100 rounded-lg border border-slate-200 border-dashed">Nenhum bloco de dados configurado para este modelo.</p>}
+            {sessions.map((session, sIdx) => (
+                <div key={session.id} className="relative">
+                    {sIdx !== 0 && <div className="absolute -top-4 left-0 right-0 h-px bg-slate-200"></div>}
+                    <h3 className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-1.5 h-4 bg-blue-600 rounded-sm inline-block"></span>
                         {session.title}
                     </h3>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {session.tags.map(tag => (
-                            <div key={tag.id}>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">{tag.label}</label>
+                            <div key={tag.id} className="bg-white p-3 rounded-md border border-slate-200 shadow-sm focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">{tag.label}</label>
                                 
                                 {tag.type === 'checkbox' ? (
-                                    <div className="space-y-2 bg-slate-50 p-2 rounded border border-slate-200">
+                                    <div className="space-y-1.5 pt-1">
                                         {(tag.options || []).map((opt, idx) => (
-                                            <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-100 p-1 rounded">
+                                            <label key={idx} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-slate-50 p-1.5 rounded transition">
                                                 <input 
                                                     type="checkbox" 
                                                     checked={(formData[tag.id] || []).includes(opt)}
                                                     onChange={() => handleCheckboxChange(tag.id, opt)}
-                                                    className="rounded text-[#00DBFF] focus:ring-[#00DBFF]"
+                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-shadow"
                                                 />
-                                                <span className="text-slate-700">{opt}</span>
+                                                <span className="text-slate-800 font-medium">{opt}</span>
                                             </label>
                                         ))}
-                                        {(tag.options || []).length === 0 && <span className="text-xs text-red-400">Sem opções configuradas.</span>}
+                                        {(tag.options || []).length === 0 && <span className="text-xs text-red-500 font-medium bg-red-50 p-2 rounded block border border-red-100">Falta configurar opções base.</span>}
                                     </div>
                                 ) : (
                                     <input 
                                         type={tag.type} 
-                                        className="w-full border p-2 rounded text-sm focus:border-[#00DBFF] outline-none transition" 
+                                        className="w-full bg-transparent border-none p-0 text-sm text-slate-900 font-medium placeholder-slate-300 focus:ring-0" 
+                                        placeholder={`Preencher ${tag.label.toLowerCase()}...`}
                                         value={formData[tag.id] || ''} 
                                         onChange={e => handleChange(tag, e.target.value)} 
                                     />
@@ -1159,8 +1385,8 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
             ))}
         </div>
       </div>
-      <div className="flex-1 bg-slate-100 p-8 flex justify-center overflow-auto custom-scroll">
-        <div className="bg-white shadow-2xl relative mx-auto origin-top" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
+      <div className="flex-1 bg-slate-200 p-8 flex justify-center overflow-auto custom-scroll inset-shadow">
+        <div className="bg-white shadow-2xl relative mx-auto origin-top border border-slate-300" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
             <SafePreview html={renderDocument()} />
         </div>
       </div>
@@ -1169,11 +1395,11 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
 }
 
 // ============================================================================
-// 7. DASHBOARD
+// 7. DASHBOARD (MAIN LAYOUT)
 // ============================================================================
 function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig, systemSettings, cepMappings }) {
   const [activePage, setActivePage] = useState('Home');
-  const [activeSubPage, setActiveSubPage] = useState(null); // Para sub-tipos
+  const [activeSubPage, setActiveSubPage] = useState(null); 
   const [expandedMenu, setExpandedMenu] = useState({ geradores: true });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toggleMenu = (key) => setExpandedMenu(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1183,118 +1409,147 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
       return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
   };
 
-  // Helper para determinar se a ferramenta atual tem sub-tipos e se um foi selecionado
-  const renderContent = () => {
-    if (activePage === 'Home') return <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />;
-    if (activePage === 'Admin') return <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />;
-    
-    // Geradores Dinâmicos
-    const currentTool = toolsConfig[activePage];
-    
-    // Se tem sub-tipos e nenhum foi selecionado, mostra tela de seleção
-    if (currentTool?.subTypes?.length > 0 && !activeSubPage) {
-        return (
-            <div className="p-10 flex flex-col items-center justify-center h-full">
-                <h2 className="text-2xl font-bold text-[#002233] mb-6">Selecione o tipo de termo</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {currentTool.subTypes.map(sub => (
-                        <button 
-                            key={sub.id} 
-                            onClick={() => setActiveSubPage(sub.id)}
-                            className="bg-white p-6 rounded-xl shadow-md border border-slate-200 hover:shadow-xl transition-all text-center group"
-                        >
-                            <div className="w-12 h-12 bg-blue-50 text-[#002233] rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            </div>
-                            <h3 className="font-bold text-lg text-slate-800">{sub.label}</h3>
-                            <p className="text-xs text-slate-500 mt-1">Clique para gerar</p>
-                        </button>
-                    ))}
-                </div>
-                <button onClick={() => setActivePage('Home')} className="mt-8 text-slate-400 hover:text-slate-600 underline">Voltar</button>
-            </div>
-        );
-    }
-    
-    // Se selecionado ou não tem sub-tipos, mostra gerador
-    // Key composed: module_sub (se houver sub) ou apenas module
-    const configKey = activeSubPage ? `${activePage}_${activeSubPage}` : activePage;
-    return (
-        <div className="flex flex-col h-full">
-            {activeSubPage && (
-                <div className="bg-white border-b p-2 flex items-center gap-2 shadow-sm z-10">
-                    <button onClick={() => setActiveSubPage(null)} className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
-                        ← Voltar para seleção
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-xs font-bold text-slate-700">{currentTool.subTypes.find(s=>s.id === activeSubPage)?.label}</span>
-                </div>
-            )}
-            <div className="flex-1 overflow-hidden">
-                <DynamicGenerator template={templates[configKey]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={configKey} cepMappings={cepMappings} />
-            </div>
-        </div>
-    );
-  };
+  const currentTool = activePage !== 'Home' && activePage !== 'Admin' ? toolsConfig[activePage] : null;
 
   return (
-    <div className="flex w-screen h-screen bg-[#f0f4f8] font-sans text-slate-800 overflow-hidden relative">
-      <style>{`.custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; } @media print { .no-print { display: none !important; } }`}</style>
+    <div className="flex w-screen h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden relative">
+      <style>{`.custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; } .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; border: 2px solid transparent; background-clip: padding-box; } .inset-shadow { box-shadow: inset 0 2px 10px 0 rgba(0,0,0,0.05); } @media print { .no-print { display: none !important; } }`}</style>
       
-      {/* Mobile Menu Button */}
-      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden absolute top-4 left-4 z-50 text-white bg-[#002233] p-2 rounded">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+      {/* Mobile Toggle */}
+      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden absolute top-4 left-4 z-50 text-white bg-slate-900 p-2 rounded shadow-lg border border-slate-700">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
 
-      {/* Sidebar */}
-      <aside className={`fixed md:relative w-64 bg-[#002233] text-white flex flex-col flex-shrink-0 z-40 shadow-xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-6 flex flex-col items-center border-b border-white/10 cursor-pointer hover:bg-[#002b40] transition" onClick={() => setActivePage('Home')}>
-          <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-10 mb-2" />
-          <span className="font-bold text-sm tracking-widest text-center mt-2">CORE | Centro de Otimização</span>
+      {/* Sidebar ERP Style */}
+      <aside className={`fixed md:relative w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 z-40 shadow-xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="h-16 flex items-center px-6 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors" onClick={() => {setActivePage('Home'); setActiveSubPage(null);}}>
+          <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-8 mr-3 opacity-90" />
+          <span className="font-bold text-sm tracking-widest text-white">CORE ERP</span>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 custom-scroll">
-          <div className="px-3 space-y-1">
-            <button onClick={() => { setActivePage('Home'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Home' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>Visão Geral
+        
+        <nav className="flex-1 overflow-y-auto py-5 custom-scroll">
+          <div className="px-3 space-y-1.5">
+            <button onClick={() => { setActivePage('Home'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Home' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+              Visão Geral
             </button>
+            
+            <div className="pt-2 pb-1">
+                <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operações</span>
+            </div>
+
             <div>
-              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white">
-                <div className="flex items-center gap-3"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>Geradores</div>
-                <svg className={`w-3 h-3 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              <button onClick={() => toggleMenu('geradores')} className="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 hover:text-white transition-colors">
+                <div className="flex items-center gap-3"><svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Emissão Dinâmica</div>
+                <svg className={`w-3 h-3 text-slate-500 transition-transform ${expandedMenu.geradores ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {expandedMenu.geradores && (
-                <div className="pl-10 pr-2 space-y-1 mt-1">
+                <div className="pl-10 pr-2 space-y-1 mt-1 border-l border-slate-800 ml-5 py-1">
                    {sortTools(toolsConfig).map(([key, tool]) => (
                         <button 
                             key={key}
                             onClick={() => { hasAccess(key) && setActivePage(key); setActiveSubPage(null); setMobileMenuOpen(false); }} 
-                            className={`w-full text-left px-3 py-1.5 rounded text-xs font-medium flex justify-between items-center ${activePage === key ? 'bg-white/10 text-[#00DBFF]' : hasAccess(key) ? 'text-slate-400 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+                            className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex justify-between items-center transition-colors ${activePage === key ? 'bg-slate-800 text-blue-400 font-semibold' : hasAccess(key) ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-600 cursor-not-allowed'}`}
                         >
                             {tool.label}
-                            {!hasAccess(key) && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
+                            {!hasAccess(key) && <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
                         </button>
                    ))}
                 </div>
               )}
             </div>
+
             {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded text-sm font-medium ${activePage === 'Admin' ? 'bg-[#00DBFF] text-[#002233]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                Administração
+              <>
+              <div className="pt-4 pb-1">
+                  <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistema</span>
+              </div>
+              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Admin' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Painel Administrativo
               </button>
+              </>
             )}
           </div>
         </nav>
-        <div className="p-4 border-t border-white/10 bg-black/20 flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-[#00DBFF] text-[#002233] flex items-center justify-center font-bold text-sm">{user.name.charAt(0)}</div>
-            <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name.split(' ')[0]}</p><p className="text-[10px] text-slate-400 truncate uppercase">{user.role}</p></div>
-            <button onClick={onLogout} className="text-slate-400 hover:text-red-400" title="Sair"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+        
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 rounded bg-blue-900 border border-blue-700 text-blue-200 flex items-center justify-center font-bold text-sm shadow-inner">{user.name.charAt(0)}</div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-200 truncate">{user.name.split(' ')[0]}</p>
+                <p className="text-[10px] text-slate-500 font-bold tracking-wider truncate uppercase">{user.role === 'admin' ? 'SysAdmin' : 'Operador'}</p>
+            </div>
+            <button onClick={onLogout} className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900 rounded-md transition" title="Encerrar Sessão">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
         </div>
       </aside>
-      <main className="flex-1 relative flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
-        {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
-        {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />}
-        {toolsConfig[activePage] && <DynamicGenerator template={templates[activePage]} tagsConfig={tagsConfig} delimiters={delimiters} moduleId={activePage} cepMappings={cepMappings} />}
+      
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 relative">
+        
+        {/* Dynamic Context Header (Se estiver dentro de um módulo) */}
+        {currentTool && (
+            <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="hidden md:flex items-center gap-2 text-sm">
+                        <span className="text-slate-400 font-medium">Operações</span>
+                        <span className="text-slate-300">/</span>
+                        <span className="font-semibold text-slate-800">{currentTool.label}</span>
+                        {activeSubPage && (
+                            <>
+                                <span className="text-slate-300">/</span>
+                                <span className="font-bold text-blue-600">{currentTool.subTypes?.find(s=>s.id === activeSubPage)?.label}</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </header>
+        )}
+
+        {/* Content Router */}
+        <div className="flex-1 overflow-hidden">
+            {activePage === 'Home' && <HomePage user={user} onNavigate={setActivePage} changelog={changelog} toolsConfig={toolsConfig} />}
+            {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />}
+            
+            {/* Dynamic Generator Routing Logic */}
+            {currentTool && currentTool?.subTypes?.length > 0 && !activeSubPage && (
+                <div className="p-10 flex flex-col items-center justify-center h-full bg-slate-50">
+                    <div className="text-center mb-10">
+                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Seleção de Variável</h2>
+                        <p className="text-slate-500 mt-2">Este módulo possui múltiplas rotinas. Defina o escopo operacional:</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl w-full">
+                        {currentTool.subTypes.map(sub => (
+                            <button 
+                                key={sub.id} 
+                                onClick={() => setActiveSubPage(sub.id)}
+                                className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left flex items-start gap-4 group"
+                            >
+                                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">{sub.label}</h3>
+                                    <p className="text-xs text-slate-500 font-mono mt-1">REF: {sub.id}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={() => setActivePage('Home')} className="mt-12 text-sm font-medium text-slate-500 hover:text-slate-800 underline">← Retornar à Visão Geral</button>
+                </div>
+            )}
+
+            {currentTool && (!currentTool?.subTypes?.length || activeSubPage) && (
+                <DynamicGenerator 
+                    template={templates[activeSubPage ? `${activePage}_${activeSubPage}` : activePage]} 
+                    tagsConfig={tagsConfig} 
+                    delimiters={delimiters} 
+                    moduleId={activeSubPage ? `${activePage}_${activeSubPage}` : activePage} 
+                    cepMappings={cepMappings} 
+                />
+            )}
+        </div>
       </main>
     </div>
   );
@@ -1306,28 +1561,25 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
 export default function App() {
   const [user, setUser] = useState(null);
   
-  // 1. Initial State from LocalStorage (Sync)
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('core_users');
     return saved ? JSON.parse(saved) : DEFAULT_USERS;
   });
   
-  // Restore user session IMMEDIATELY on mount
   useEffect(() => {
     const session = localStorage.getItem('core_session_user');
     if (session) {
       try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
     }
     
-    // Favicon e Título
-    document.title = "CORE | Sistema";
+    document.title = "CORE ERP | Operações";
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.getElementsByTagName('head')[0].appendChild(link);
     }
-    link.href = "https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png"; // Ícone TOTVS Core
+    link.href = "https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png"; 
   }, []);
 
   const [templates, setTemplates] = useState({});
@@ -1335,17 +1587,15 @@ export default function App() {
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
-  const [systemSettings, setSystemSettings] = useState({ devBypass: true }); // Default true
-  const [cepMappings, setCepMappings] = useState([]); // Mapeamento de CEP
+  const [systemSettings, setSystemSettings] = useState({ devBypass: true });
+  const [cepMappings, setCepMappings] = useState([]);
   const [dbReady, setDbReady] = useState(false);
 
-  // 2. Persist Login
   useEffect(() => {
     if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
     else localStorage.removeItem('core_session_user');
   }, [user]);
 
-  // 3. Firebase Connection
   useEffect(() => {
       const unsubAuth = onAuthStateChanged(auth, (authUser) => {
           if (authUser) {
@@ -1406,9 +1656,6 @@ export default function App() {
     if (!document.querySelector('script[src*="tailwindcss"]')) { 
       const s = document.createElement('script'); s.src = "https://cdn.tailwindcss.com"; document.head.appendChild(s); 
     }
-    const style = document.createElement('style');
-    style.innerHTML = `body, html, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; } .custom-scroll::-webkit-scrollbar { width: 6px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`;
-    document.head.appendChild(style);
   }, []);
 
   return user ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} /> : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
