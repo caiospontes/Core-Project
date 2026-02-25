@@ -25,7 +25,8 @@ function SafePreview({ html }) {
         const PADDING = 40;
         
         const availableWidth = parentWidth - PADDING;
-        const scale = Math.min(availableWidth / A4_WIDTH_PX, 1.2); 
+        const rawScale = availableWidth / A4_WIDTH_PX;
+        const scale = Math.max(0.35, Math.min(rawScale, 1)); 
         
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
@@ -34,7 +35,7 @@ function SafePreview({ html }) {
         const displayHeight = Math.max(contentHeight, 1123); 
         
         containerRef.current.style.height = `${displayHeight}px`;
-        wrapperRef.current.style.height = `${(displayHeight * scale) + 100}px`; 
+        wrapperRef.current.style.minHeight = `${(displayHeight * scale) + 100}px`; 
       }
     };
 
@@ -92,7 +93,7 @@ function SafePreview({ html }) {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
+    <div ref={wrapperRef} className="w-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
       <div 
         ref={containerRef} 
         style={{ width: '794px', minHeight: '1123px', transition: 'transform 0.1s ease-out' }}
@@ -1310,7 +1311,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
         </div>
       </div>
       <div className="flex-1 bg-slate-200 p-8 flex justify-center overflow-auto custom-scroll inset-shadow">
-        <div className="bg-white shadow-2xl relative mx-auto origin-top border border-slate-300" style={{ width: '210mm', height: '297mm', minWidth: '210mm', minHeight: '297mm' }}>
+        <div className="bg-white shadow-2xl relative mx-auto border border-slate-300 w-full max-w-[210mm] min-h-full">
             <SafePreview html={renderDocument()} />
         </div>
       </div>
@@ -1443,29 +1444,43 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
             
             {/* Dynamic Generator Routing Logic */}
             {currentTool && currentTool?.subTypes?.length > 0 && !activeSubPage && (
-                <div className="p-10 flex flex-col items-center justify-center h-full bg-slate-50">
-                    <div className="text-center mb-10">
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Seleção de Variável</h2>
-                        <p className="text-slate-500 mt-2">Este módulo possui múltiplas rotinas. Defina o escopo operacional:</p>
+                <div className="h-full overflow-y-auto custom-scroll bg-gradient-to-b from-slate-50/80 to-slate-100/60 p-6 md:p-10">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="text-center mb-8 md:mb-10">
+                            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                              {currentTool.subTypes.length} variação{currentTool.subTypes.length > 1 ? 'ões' : ''} disponível{currentTool.subTypes.length > 1 ? 'eis' : ''}
+                            </span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mt-4">Seleção de Variável</h2>
+                            <p className="text-slate-500 mt-2 max-w-2xl mx-auto">Este módulo possui múltiplas rotinas. Escolha abaixo o escopo operacional para continuar.</p>
+                        </div>
+
+                        <div
+                          className="grid gap-4 md:gap-6"
+                          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
+                        >
+                            {currentTool.subTypes.map((sub, idx) => (
+                                <button
+                                    key={sub.id}
+                                    onClick={() => setActiveSubPage(sub.id)}
+                                    className="bg-white/95 backdrop-blur p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-lg hover:-translate-y-0.5 transition-all text-left flex items-start gap-4 group"
+                                >
+                                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Variável {idx + 1}</p>
+                                        <h3 className="font-semibold text-slate-900 text-lg leading-snug group-hover:text-blue-700 transition-colors break-words">{sub.label}</h3>
+                                        
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="text-center mt-10">
+                          <button onClick={() => setActivePage('Home')} className="text-sm font-medium text-slate-500 hover:text-slate-800 underline underline-offset-4">← Retornar à Visão Geral</button>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl w-full">
-                        {currentTool.subTypes.map(sub => (
-                            <button 
-                                key={sub.id} 
-                                onClick={() => setActiveSubPage(sub.id)}
-                                className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left flex items-start gap-4 group"
-                            >
-                                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">{sub.label}</h3>
-                                    <p className="text-xs text-slate-500 font-mono mt-1">REF: {sub.id}</p>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                    <button onClick={() => setActivePage('Home')} className="mt-12 text-sm font-medium text-slate-500 hover:text-slate-800 underline">← Retornar à Visão Geral</button>
                 </div>
             )}
 
