@@ -166,12 +166,15 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8 font-sans text-slate-800">
       <div className="glass-panel w-full max-w-md p-8 rounded-2xl shadow-2xl shadow-slate-300/40">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 font-sans text-slate-800">
+      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-slate-200">
         
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto rounded-lg flex items-center justify-center mb-4 border border-slate-100 shadow-sm bg-slate-50">
              <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-10" />
           </div>
           <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent tracking-tight">CORE ERP</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">CORE ERP</h1>
           <p className="text-slate-500 text-sm mt-1">Centro de Otimização Operacional</p>
           {!dbReady && <span className="text-xs text-amber-600 font-medium block mt-2">Sincronizando ambiente...</span>}
           {dbReady && <span className="text-xs text-emerald-600 font-medium block mt-2">Ambiente Seguro Conectado</span>}
@@ -179,6 +182,7 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
         
         <div className="space-y-6">
           <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white/95 border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-lg hover:bg-white transition-all hover:shadow-md flex items-center justify-center gap-3 shadow-sm">
+          <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border border-slate-300 text-slate-700 font-medium py-2.5 rounded-md hover:bg-slate-50 transition-colors flex items-center justify-center gap-3 shadow-sm">
             {loading ? <span className="text-sm">Processando...</span> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-4 h-4" /><span className="text-sm">Acessar com Google Workspace</span></>}
           </button>
           
@@ -201,6 +205,7 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
             </div>
             
             <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/20 text-sm mt-2">
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors shadow-sm text-sm mt-2">
                 Entrar no Sistema
             </button>
             
@@ -224,6 +229,8 @@ function HomePage({ onNavigate, _user, changelog, toolsConfig }) {
   return (
   <div className="h-full w-full flex flex-col bg-gradient-to-b from-slate-50 to-slate-100 overflow-y-auto">
     <div className="bg-white/90 backdrop-blur border-b border-slate-200 px-8 py-6 sticky top-0 z-10">
+  <div className="h-full w-full flex flex-col bg-slate-50 overflow-y-auto">
+    <div className="bg-white border-b border-slate-200 px-8 py-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Visão Geral</h1>
         <p className="text-slate-500 text-sm mt-1">Acesso rápido aos módulos operacionais do CORE.</p>
@@ -236,6 +243,9 @@ function HomePage({ onNavigate, _user, changelog, toolsConfig }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {sortTools(toolsConfig).map(([key, tool]) => (
                     <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white/95 p-5 rounded-xl shadow-sm border border-slate-200 transition-all duration-200 ${tool.active ? 'hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg cursor-pointer' : 'opacity-60 cursor-not-allowed bg-slate-50'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sortTools(toolsConfig).map(([key, tool]) => (
+                    <div key={key} onClick={() => tool.active && onNavigate(key)} className={`bg-white p-5 rounded-lg shadow-sm border border-slate-200 transition-all ${tool.active ? 'hover:border-blue-300 hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed bg-slate-50'}`}>
                         <div className="flex items-start gap-4">
                             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded flex-shrink-0 flex items-center justify-center border border-blue-100">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tool.icon} /></svg>
@@ -1324,6 +1334,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
 
   return (
     <div className="flex w-screen h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 font-sans text-slate-800 overflow-hidden relative">
+    <div className="flex w-screen h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden relative">
       <style>{`.custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; } .custom-scroll::-webkit-scrollbar-track { background: transparent; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; } .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; border: 2px solid transparent; background-clip: padding-box; } .inset-shadow { box-shadow: inset 0 2px 10px 0 rgba(0,0,0,0.05); } @media print { .no-print { display: none !important; } }`}</style>
       
       {/* Mobile Toggle */}
@@ -1333,6 +1344,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
 
       {/* Sidebar ERP Style */}
       <aside className={`fixed md:relative w-72 bg-slate-900/95 backdrop-blur text-slate-300 flex flex-col flex-shrink-0 z-40 shadow-2xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:relative w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 z-40 shadow-xl no-print h-full transition-transform transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="h-16 flex items-center px-6 border-b border-slate-800 cursor-pointer hover:bg-slate-800/50 transition-colors" onClick={() => {setActivePage('Home'); setActiveSubPage(null);}}>
           <img src="https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png" alt="Logo" className="w-8 mr-3 opacity-90" />
           <span className="font-bold text-sm tracking-widest text-white">CORE ERP</span>
@@ -1402,6 +1414,11 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
         {/* Dynamic Context Header (Se estiver dentro de um módulo) */}
         {currentTool && (
             <header className="h-16 bg-white/90 backdrop-blur border-b border-slate-200 px-8 flex items-center justify-between flex-shrink-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 relative">
+        
+        {/* Dynamic Context Header (Se estiver dentro de um módulo) */}
+        {currentTool && (
+            <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="hidden md:flex items-center gap-2 text-sm">
                         <span className="text-slate-400 font-medium">Operações</span>
