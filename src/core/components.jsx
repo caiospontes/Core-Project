@@ -1403,6 +1403,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
       if (!tool || !tool.active) return false;
       return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
   };
+  const hasAdminAccess = user.role === 'admin' || user.permissions.includes('all');
 
   const currentTool = activePage !== 'Home' && activePage !== 'Admin' && activePage !== 'LAPS' ? toolsConfig[activePage] : null;
 
@@ -1454,12 +1455,15 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               )}
             </div>
 
-            {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <>
+            <>
               <div className="pt-4 pb-1">
                   <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistema</span>
               </div>
-              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Admin' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <button
+                onClick={() => { if (!hasAdminAccess) return; setActivePage('Admin'); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Admin' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : hasAdminAccess ? 'hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+                title={hasAdminAccess ? 'Abrir Painel Administrativo' : 'Acesso restrito a administradores'}
+              >
                 <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Painel Administrativo
               </button>
@@ -1468,7 +1472,6 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
                 Leitor de Senha LAPS
               </button>
               </>
-            )}
           </div>
         </nav>
         
