@@ -1327,19 +1327,18 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
 function LapsReaderPage() {
   const [rawPassword, setRawPassword] = useState('');
 
-  const symbolNames = {
-    '!': 'exclamação', '@': 'arroba', '#': 'cerquilha', '$': 'cifrão', '%': 'porcento', '^': 'circunflexo', '&': 'e comercial', '*': 'asterisco',
-    '(': 'abre parêntese', ')': 'fecha parêntese', '-': 'hífen', '_': 'sublinhado', '+': 'mais', '=': 'igual', '[': 'abre colchete', ']': 'fecha colchete',
-    '{': 'abre chave', '}': 'fecha chave', ';': 'ponto e vírgula', ':': 'dois pontos', "'": 'aspa simples', '"': 'aspa dupla', ',': 'vírgula', '.': 'ponto',
-    '<': 'menor que', '>': 'maior que', '/': 'barra', '\\': 'barra invertida', '?': 'interrogação', '|': 'barra vertical', '`': 'crase', '~': 'til', ' ': 'espaço'
+  const phoneticMap = {
+    A: 'Alfa', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot', G: 'Golf', H: 'Hotel', I: 'India', J: 'Juliett', K: 'Kilo', L: 'Lima', M: 'Mike', N: 'November', O: 'Oscar', P: 'Papa', Q: 'Quebec', R: 'Romeo', S: 'Sierra', T: 'Tango', U: 'Uniform', V: 'Victor', W: 'Whiskey', X: 'X-ray', Y: 'Yankee', Z: 'Zulu',
+    '0': 'Zero', '1': 'Um', '2': 'Dois', '3': 'Três', '4': 'Quatro', '5': 'Cinco', '6': 'Seis', '7': 'Sete', '8': 'Oito', '9': 'Nove',
+    '!': 'Exclamação', '@': 'Arroba', '#': 'Cerquilha', '$': 'Cifrão', '%': 'Porcento', '^': 'Circunflexo', '&': 'E comercial', '*': 'Asterisco',
+    '(': 'Abre parêntese', ')': 'Fecha parêntese', '-': 'Hífen', '_': 'Sublinhado', '+': 'Mais', '=': 'Igual', '[': 'Abre colchete', ']': 'Fecha colchete',
+    '{': 'Abre chave', '}': 'Fecha chave', ';': 'Ponto e vírgula', ':': 'Dois pontos', "'": 'Aspa simples', '"': 'Aspa dupla', ',': 'Vírgula', '.': 'Ponto',
+    '<': 'Menor que', '>': 'Maior que', '/': 'Barra', '\\': 'Barra invertida', '?': 'Interrogação', '|': 'Barra vertical', '`': 'Crase', '~': 'Til', ' ': 'Espaço'
   };
 
   const tokens = rawPassword.split('').map((ch) => {
-    let label = '';
-    if (/[A-Z]/.test(ch)) label = `letra maiúscula ${ch}`;
-    else if (/[a-z]/.test(ch)) label = `letra minúscula ${ch}`;
-    else if (/[0-9]/.test(ch)) label = `número ${ch}`;
-    else label = symbolNames[ch] || `símbolo ${ch}`;
+    const upper = ch.toUpperCase();
+    const label = phoneticMap[upper] || phoneticMap[ch] || `Símbolo ${ch}`;
     return { char: ch, spoken: label };
   });
 
@@ -1350,7 +1349,7 @@ function LapsReaderPage() {
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Leitor de Senha LAPS</h2>
-          <p className="text-slate-500 mt-2">Cole abaixo a senha gerada no LAPS para converter em leitura por extenso, diferenciando maiúsculas e minúsculas.</p>
+          <p className="text-slate-500 mt-2">Cole abaixo a senha gerada no LAPS para converter automaticamente em leitura fonética.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1367,9 +1366,9 @@ function LapsReaderPage() {
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha por extenso (com diferenciação de caixa)</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha por extenso (alfabeto fonético)</label>
             <div className="min-h-[148px] rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-800 leading-relaxed break-words">
-              {spokenPassword || 'O conteúdo por extenso aparecerá aqui.'}
+              {spokenPassword || 'O conteúdo fonético aparecerá aqui.'}
             </div>
           </div>
         </div>
