@@ -1327,18 +1327,19 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
 function LapsReaderPage() {
   const [rawPassword, setRawPassword] = useState('');
 
-  const phoneticMap = {
-    A: 'Alfa', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot', G: 'Golf', H: 'Hotel', I: 'India', J: 'Juliett', K: 'Kilo', L: 'Lima', M: 'Mike', N: 'November', O: 'Oscar', P: 'Papa', Q: 'Quebec', R: 'Romeo', S: 'Sierra', T: 'Tango', U: 'Uniform', V: 'Victor', W: 'Whiskey', X: 'X-ray', Y: 'Yankee', Z: 'Zulu',
-    '0': 'Zero', '1': 'Um', '2': 'Dois', '3': 'Três', '4': 'Quatro', '5': 'Cinco', '6': 'Seis', '7': 'Sete', '8': 'Oito', '9': 'Nove',
-    '!': 'Exclamação', '@': 'Arroba', '#': 'Cerquilha', '$': 'Cifrão', '%': 'Porcento', '^': 'Circunflexo', '&': 'E comercial', '*': 'Asterisco',
-    '(': 'Abre parêntese', ')': 'Fecha parêntese', '-': 'Hífen', '_': 'Sublinhado', '+': 'Mais', '=': 'Igual', '[': 'Abre colchete', ']': 'Fecha colchete',
-    '{': 'Abre chave', '}': 'Fecha chave', ';': 'Ponto e vírgula', ':': 'Dois pontos', "'": 'Aspa simples', '"': 'Aspa dupla', ',': 'Vírgula', '.': 'Ponto',
-    '<': 'Menor que', '>': 'Maior que', '/': 'Barra', '\\': 'Barra invertida', '?': 'Interrogação', '|': 'Barra vertical', '`': 'Crase', '~': 'Til', ' ': 'Espaço'
+  const symbolNames = {
+    '!': 'exclamação', '@': 'arroba', '#': 'cerquilha', '$': 'cifrão', '%': 'porcento', '^': 'circunflexo', '&': 'e comercial', '*': 'asterisco',
+    '(': 'abre parêntese', ')': 'fecha parêntese', '-': 'hífen', '_': 'sublinhado', '+': 'mais', '=': 'igual', '[': 'abre colchete', ']': 'fecha colchete',
+    '{': 'abre chave', '}': 'fecha chave', ';': 'ponto e vírgula', ':': 'dois pontos', "'": 'aspa simples', '"': 'aspa dupla', ',': 'vírgula', '.': 'ponto',
+    '<': 'menor que', '>': 'maior que', '/': 'barra', '\\': 'barra invertida', '?': 'interrogação', '|': 'barra vertical', '`': 'crase', '~': 'til', ' ': 'espaço'
   };
 
   const tokens = rawPassword.split('').map((ch) => {
-    const upper = ch.toUpperCase();
-    const label = phoneticMap[upper] || phoneticMap[ch] || `Símbolo ${ch}`;
+    let label = '';
+    if (/[A-Z]/.test(ch)) label = `letra maiúscula ${ch}`;
+    else if (/[a-z]/.test(ch)) label = `letra minúscula ${ch}`;
+    else if (/[0-9]/.test(ch)) label = `número ${ch}`;
+    else label = symbolNames[ch] || `símbolo ${ch}`;
     return { char: ch, spoken: label };
   });
 
@@ -1349,7 +1350,7 @@ function LapsReaderPage() {
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Leitor de Senha LAPS</h2>
-          <p className="text-slate-500 mt-2">Cole abaixo a senha gerada no LAPS para converter automaticamente em leitura fonética.</p>
+          <p className="text-slate-500 mt-2">Cole abaixo a senha gerada no LAPS para converter em leitura por extenso, diferenciando maiúsculas e minúsculas.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1366,9 +1367,9 @@ function LapsReaderPage() {
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha por extenso (alfabeto fonético)</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha por extenso (com diferenciação de caixa)</label>
             <div className="min-h-[148px] rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-800 leading-relaxed break-words">
-              {spokenPassword || 'O conteúdo fonético aparecerá aqui.'}
+              {spokenPassword || 'O conteúdo por extenso aparecerá aqui.'}
             </div>
           </div>
         </div>
@@ -1455,6 +1456,11 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               )}
             </div>
 
+            <button onClick={() => { setActivePage('LAPS'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'LAPS' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 .552-.447 1-1 1a1 1 0 01-1-1V9a2 2 0 114 0v2a5 5 0 11-10 0V9a6 6 0 1112 0v2a7 7 0 11-14 0V9" /></svg>
+              Leitor de Senha LAPS
+            </button>
+
             <>
               <div className="pt-4 pb-1">
                   <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistema</span>
@@ -1466,10 +1472,6 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               >
                 <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Painel Administrativo
-              </button>
-              <button onClick={() => { setActivePage('LAPS'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'LAPS' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 .552-.447 1-1 1a1 1 0 01-1-1V9a2 2 0 114 0v2a5 5 0 11-10 0V9a6 6 0 1112 0v2a7 7 0 11-14 0V9" /></svg>
-                Leitor de Senha LAPS
               </button>
               </>
           </div>
