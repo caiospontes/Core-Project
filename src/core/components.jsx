@@ -22,7 +22,7 @@ function SafePreview({ html }) {
       if (wrapperRef.current && containerRef.current && shadowRootRef.current && shadowRootRef.current.body) {
         const parentWidth = wrapperRef.current.clientWidth;
         const A4_WIDTH_PX = 794; 
-        const PADDING = 40;
+        const PADDING = 8;
         
         const availableWidth = parentWidth - PADDING;
         const rawScale = availableWidth / A4_WIDTH_PX;
@@ -31,11 +31,10 @@ function SafePreview({ html }) {
         containerRef.current.style.transform = `scale(${scale})`;
         containerRef.current.style.transformOrigin = 'top center';
         
-        const contentHeight = shadowRootRef.current.body.scrollHeight;
-        const displayHeight = Math.max(contentHeight, 1123); 
-        
-        containerRef.current.style.height = `${displayHeight}px`;
-        wrapperRef.current.style.minHeight = `${(displayHeight * scale) + 100}px`; 
+        const A4_HEIGHT_PX = 1123;
+
+        containerRef.current.style.height = `${A4_HEIGHT_PX}px`;
+        wrapperRef.current.style.minHeight = `${(A4_HEIGHT_PX * scale) + 32}px`; 
       }
     };
 
@@ -63,12 +62,10 @@ function SafePreview({ html }) {
         :host { 
             display: block; 
             width: 794px; 
-            min-height: 1123px; 
-            height: auto;
+            height: 1123px;
             background: white;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             margin: 0 auto;
-            overflow: visible; 
+            overflow: hidden; 
             position: relative;
         }
         body { 
@@ -76,7 +73,7 @@ function SafePreview({ html }) {
             padding: 0; 
             font-family: Arial, sans-serif; 
             width: 100%; 
-            min-height: 100%;
+            height: 100%;
             box-sizing: border-box;
             color: black;
             overflow-wrap: break-word;
@@ -93,10 +90,10 @@ function SafePreview({ html }) {
   }, [html]);
 
   return (
-    <div ref={wrapperRef} className="w-full flex items-start justify-center overflow-auto bg-slate-200/50 p-4 custom-scroll">
+    <div ref={wrapperRef} className="w-full h-full flex items-start justify-center overflow-auto custom-scroll">
       <div 
         ref={containerRef} 
-        style={{ width: '794px', minHeight: '1123px', transition: 'transform 0.1s ease-out' }}
+        style={{ width: '794px', height: '1123px', transition: 'transform 0.1s ease-out', overflow: 'hidden', background: 'white' }}
       ></div>
     </div>
   );
@@ -1177,9 +1174,10 @@ function AdminPanel({ users, templates, tagsConfig, delimiters, changelog, tools
 function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappings }) {
   const [formData, setFormData] = useState({});
   const [sessions, setSessions] = useState([]);
+  const baseModuleId = moduleId.includes('_') ? moduleId.split('_')[0] : moduleId;
 
   useEffect(() => {
-    const config = tagsConfig[moduleId] || { sessions: [] };
+    const config = tagsConfig[moduleId] || tagsConfig[baseModuleId] || { sessions: [] };
     const activeSessions = config.sessions.filter(s => s.active);
     setSessions(activeSessions);
     setFormData((prev) => {
@@ -1195,7 +1193,7 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
       });
       return initialData;
     });
-  }, [tagsConfig, moduleId]);
+  }, [tagsConfig, moduleId, baseModuleId]);
 
   const handleChange = async (tag, value) => {
     setFormData(prev => ({ ...prev, [tag.id]: value }));
@@ -1236,13 +1234,18 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
       sessions.forEach(session => {
           session.tags.forEach(tag => {
               let val = formData[tag.id];
-              if (Array.isArray(val)) val = val.join(', '); 
+              if (Array.isArray(val)) val = val.join(', ');
               val = val || '';
               if(tag.id === 'DATA' && val && !Array.isArray(val) && val.includes('-')) val = val.split('-').reverse().join('/');
               const tagPattern = `${delimiters.prefix}${tag.id}${delimiters.suffix}`;
               html = html.split(tagPattern).join(val);
           });
       });
+
+      const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const unresolvedPattern = new RegExp(`${escapeRegex(delimiters.prefix)}\\s*[A-Z0-9_]+\\s*${escapeRegex(delimiters.suffix)}`, 'g');
+      html = html.replace(unresolvedPattern, '');
+
       return html;
   };
 
@@ -1310,8 +1313,8 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
             ))}
         </div>
       </div>
-      <div className="flex-1 bg-slate-200 p-8 flex justify-center overflow-auto custom-scroll inset-shadow">
-        <div className="bg-white shadow-2xl relative mx-auto border border-slate-300 w-full max-w-[210mm] min-h-full">
+      <div className="flex-1 bg-slate-200/60 p-2 md:p-3 flex justify-center overflow-auto custom-scroll inset-shadow">
+        <div className="relative mx-auto w-full h-full max-w-[210mm] bg-white overflow-hidden">
             <SafePreview html={renderDocument()} />
         </div>
       </div>
