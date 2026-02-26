@@ -1324,6 +1324,75 @@ function DynamicGenerator({ template, tagsConfig, delimiters, moduleId, cepMappi
 
 
 
+function LapsReaderPage() {
+  const [rawPassword, setRawPassword] = useState('');
+
+  const symbolNames = {
+    '!': 'exclamação', '@': 'arroba', '#': 'cerquilha', '$': 'cifrão', '%': 'porcento', '^': 'circunflexo', '&': 'e comercial', '*': 'asterisco',
+    '(': 'abre parêntese', ')': 'fecha parêntese', '-': 'hífen', '_': 'sublinhado', '+': 'mais', '=': 'igual', '[': 'abre colchete', ']': 'fecha colchete',
+    '{': 'abre chave', '}': 'fecha chave', ';': 'ponto e vírgula', ':': 'dois pontos', "'": 'aspa simples', '"': 'aspa dupla', ',': 'vírgula', '.': 'ponto',
+    '<': 'menor que', '>': 'maior que', '/': 'barra', '\\': 'barra invertida', '?': 'interrogação', '|': 'barra vertical', '`': 'crase', '~': 'til', ' ': 'espaço'
+  };
+
+  const tokens = rawPassword.split('').map((ch) => {
+    let label = '';
+    if (/[A-Z]/.test(ch)) label = `letra maiúscula ${ch}`;
+    else if (/[a-z]/.test(ch)) label = `letra minúscula ${ch}`;
+    else if (/[0-9]/.test(ch)) label = `número ${ch}`;
+    else label = symbolNames[ch] || `símbolo ${ch}`;
+    return { char: ch, spoken: label };
+  });
+
+  const spokenPassword = tokens.map((t) => t.spoken).join(' • ');
+
+  return (
+    <div className="h-full overflow-y-auto custom-scroll bg-gradient-to-b from-slate-50/90 to-slate-100/60 p-6 md:p-10">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Leitor de Senha LAPS</h2>
+          <p className="text-slate-500 mt-2">Cole abaixo a senha gerada no LAPS para converter em leitura por extenso, diferenciando maiúsculas e minúsculas.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha LAPS</label>
+            <textarea
+              rows={6}
+              value={rawPassword}
+              onChange={(e) => setRawPassword(e.target.value.trim())}
+              placeholder="Cole aqui a senha do LAPS..."
+              className="w-full rounded-xl border border-slate-300 bg-slate-50/70 p-3 font-mono text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+            />
+            <p className="text-xs text-slate-400 mt-2">Dica: mantenha maiúsculas/minúsculas como na senha original.</p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Senha por extenso (com diferenciação de caixa)</label>
+            <div className="min-h-[148px] rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-800 leading-relaxed break-words">
+              {spokenPassword || 'O conteúdo por extenso aparecerá aqui.'}
+            </div>
+          </div>
+        </div>
+
+        {tokens.length > 0 && (
+          <div className="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalhamento caractere por caractere</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+              {tokens.map((token, idx) => (
+                <div key={`${token.char}-${idx}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-50/80">
+                  <span className="font-mono text-slate-900">{token.char === ' ' ? '[espaço]' : token.char}</span>
+                  <span className="text-slate-400 mx-2">→</span>
+                  <span className="font-medium text-blue-700">{token.spoken}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, tagsConfig, setTagsConfig, delimiters, setDelimiters, changelog, setChangelog, toolsConfig, setToolsConfig, systemSettings, cepMappings }) {
   const [activePage, setActivePage] = useState('Home');
   const [activeSubPage, setActiveSubPage] = useState(null); 
@@ -1335,8 +1404,9 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
       if (!tool || !tool.active) return false;
       return user.role === 'admin' || user.permissions.includes('all') || user.permissions.includes(toolKey);
   };
+  const hasAdminAccess = user.role === 'admin' || user.permissions.includes('all');
 
-  const currentTool = activePage !== 'Home' && activePage !== 'Admin' ? toolsConfig[activePage] : null;
+  const currentTool = activePage !== 'Home' && activePage !== 'Admin' && activePage !== 'LAPS' ? toolsConfig[activePage] : null;
 
   return (
     <div className="flex w-screen h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 font-sans text-slate-800 overflow-hidden relative">
@@ -1386,17 +1456,23 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               )}
             </div>
 
-            {(user.role === 'admin' || user.permissions.includes('all')) && (
-              <>
+            <>
               <div className="pt-4 pb-1">
                   <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistema</span>
               </div>
-              <button onClick={() => { setActivePage('Admin'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Admin' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <button
+                onClick={() => { if (!hasAdminAccess) return; setActivePage('Admin'); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'Admin' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : hasAdminAccess ? 'hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+                title={hasAdminAccess ? 'Abrir Painel Administrativo' : 'Acesso restrito a administradores'}
+              >
                 <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Painel Administrativo
               </button>
+              <button onClick={() => { setActivePage('LAPS'); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all ${activePage === 'LAPS' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <svg className="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 .552-.447 1-1 1a1 1 0 01-1-1V9a2 2 0 114 0v2a5 5 0 11-10 0V9a6 6 0 1112 0v2a7 7 0 11-14 0V9" /></svg>
+                Leitor de Senha LAPS
+              </button>
               </>
-            )}
           </div>
         </nav>
         
@@ -1444,6 +1520,7 @@ function Dashboard({ user, onLogout, users, setUsers, templates, setTemplates, t
               </div>
             )}
             {activePage === 'Admin' && <AdminPanel users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />}
+            {activePage === 'LAPS' && <LapsReaderPage />}
             
             {/* Dynamic Generator Routing Logic */}
             {currentTool && currentTool?.subTypes?.length > 0 && !activeSubPage && (
