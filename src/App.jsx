@@ -10,6 +10,7 @@ import {
   DEFAULT_CHANGELOG,
   DEFAULT_TOOLS_CONFIG,
   DEFAULT_TAGS_WITH_SESSIONS,
+  DEFAULT_INVENTORY_CONFIGS,
 } from './core/defaults';
 
 export default function App() {
@@ -17,7 +18,13 @@ export default function App() {
 
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('core_users');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+    if (!saved) return DEFAULT_USERS;
+    try {
+      return JSON.parse(saved);
+    } catch {
+      localStorage.removeItem('core_users');
+      return DEFAULT_USERS;
+    }
   });
 
   useEffect(() => {
@@ -43,7 +50,10 @@ export default function App() {
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
   const [systemSettings, setSystemSettings] = useState({ devBypass: true });
   const [cepMappings, setCepMappings] = useState([]);
+  const [correiosPresets, setCorreiosPresets] = useState([]);
+  const [inventoryConfigs, setInventoryConfigs] = useState(DEFAULT_INVENTORY_CONFIGS);
   const [dbReady, setDbReady] = useState(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
   useEffect(() => {
     if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
@@ -63,13 +73,28 @@ export default function App() {
 
   useEffect(() => {
     if (!dbReady) return;
+    setInitialDataLoaded(false);
+    const loadState = {
+      users: false,
+      templates: false,
+      tags: false,
+      settings: false,
+      changelog: false,
+    };
+    const markLoaded = (key) => {
+      loadState[key] = true;
+      if (Object.values(loadState).every(Boolean)) setInitialDataLoaded(true);
+    };
+
     const unsubUsers = onSnapshot(getCollectionRef('users'), (snap) => {
       const loaded = []; snap.forEach((doc) => loaded.push(doc.data()));
       if (loaded.length === 0) DEFAULT_USERS.forEach((u) => setDoc(getDocRef('users', u.id), u));
       else setUsers(loaded);
+      markLoaded('users');
     }, () => {});
     const unsubTemplates = onSnapshot(getCollectionRef('templates'), (snap) => {
       const loaded = {}; snap.forEach((doc) => { loaded[doc.id] = doc.data(); }); setTemplates(loaded);
+      markLoaded('templates');
     }, () => {});
     const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
       const loaded = {}; snap.forEach((doc) => { loaded[doc.id] = doc.data(); });
@@ -86,27 +111,44 @@ export default function App() {
         });
         setTagsConfig(migrated);
       }
+      markLoaded('tags');
     }, () => {});
     const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
+      let hasTools = false;
+      let hasInventories = false;
       snap.forEach((doc) => {
         if (doc.id === 'delimiters') setDelimiters(doc.data());
-        if (doc.id === 'tools') setToolsConfig(doc.data());
+        if (doc.id === 'tools') { setToolsConfig(doc.data()); hasTools = true; }
         if (doc.id === 'config') setSystemSettings(doc.data());
         if (doc.id === 'cepMappings') setCepMappings(doc.data().list || []);
+        if (doc.id === 'correiosAddressBook') setCorreiosPresets(doc.data().list || []);
+        if (doc.id === 'inventories') { setInventoryConfigs(doc.data().list || DEFAULT_INVENTORY_CONFIGS); hasInventories = true; }
       });
-      if (snap.empty) {
-        setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
-      }
+      if (!hasTools) setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
+      if (!hasInventories) setDoc(getDocRef('settings', 'inventories'), { list: DEFAULT_INVENTORY_CONFIGS });
+      markLoaded('settings');
     });
     const unsubChangelog = onSnapshot(getCollectionRef('changelog'), (snap) => {
       const loaded = []; snap.forEach((doc) => loaded.push(doc.data()));
       if (loaded.length === 0) DEFAULT_CHANGELOG.forEach((l) => setDoc(getDocRef('changelog', l.id), l));
       else setChangelog(loaded.sort((a, b) => b.id - a.id));
+      markLoaded('changelog');
     }, () => {});
     return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); };
   }, [dbReady]);
 
+  if (user && !initialDataLoaded) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-[radial-gradient(circle_at_12%_8%,rgba(59,130,246,0.14)_0,transparent_38%),radial-gradient(circle_at_82%_18%,rgba(139,92,246,0.16)_0,transparent_34%),linear-gradient(145deg,#f3f7ff_0%,#edf4ff_35%,#eaf3ff_100%)]">
+        <div className="glass-panel rounded-2xl px-8 py-6 border border-indigo-100 text-center shadow-xl">
+          <p className="text-sm font-semibold text-slate-700">Sincronizando dados do ambiente...</p>
+          <p className="text-xs text-slate-500 mt-1">Carregando módulos, templates e configurações.</p>
+        </div>
+      </div>
+    );
+  }
+
   return user
-    ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />
+    ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} correiosPresets={correiosPresets} inventoryConfigs={inventoryConfigs} />
     : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
 }
