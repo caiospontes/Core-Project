@@ -285,10 +285,12 @@ function LoginPage({ onLogin, users, dbReady, systemSettings }) {
         <div className="absolute -top-1 left-1/2 h-12 w-44 -translate-x-1/2 rounded-full bg-cyan-200/35 blur-2xl"></div>
 
         <div className="relative text-center mb-7">
-          <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 border border-cyan-100/40 bg-slate-900/60 shadow-lg shadow-cyan-900/40">
-            <img src="https://midias-sites.totvs.com/marca/wp-content/uploads/2025/11/Vector-3.png.webp" alt="Logo CORE" className="h-6 w-auto" />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-100">Welcome back</h1>
+  <img 
+    src="https://midias-sites.totvs.com/marca/wp-content/uploads/2025/11/Vector-3.png.webp" 
+    alt="Logo CORE" 
+    className="h-8 w-auto mx-auto mb-5" 
+  />
+  <h1 className="text-3xl font-semibold tracking-tight text-slate-100">Bem vindo!</h1>
           <p className="text-slate-300/80 text-sm mt-1">Acesse o CORE com suas credenciais.</p>
           {!dbReady && <span className="text-xs text-amber-300 font-medium block mt-2">Sincronizando ambiente...</span>}
           {dbReady && <span className="text-xs text-cyan-300 font-medium block mt-2">Ambiente seguro conectado</span>}
