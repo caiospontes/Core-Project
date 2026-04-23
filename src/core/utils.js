@@ -1,0 +1,146 @@
+function sortTools(config) {
+    if (!config) return [];
+    return Object.entries(config).sort(([, a], [, b]) => {
+        const orderA = Number.isFinite(a?.order) ? a.order : Number.MAX_SAFE_INTEGER;
+        const orderB = Number.isFinite(b?.order) ? b.order : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        return a.label.localeCompare(b.label);
+    });
+}
+
+const getCompositeKey = (moduleId, subId) => subId ? `${moduleId}_${subId}` : moduleId;
+
+const toCanonicalKey = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[̀-ͯ]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const buildKeyCandidates = (moduleId, subId = '') => {
+  const composite = getCompositeKey(moduleId, subId);
+  const normalized = String(composite || '').trim();
+  if (!normalized) return [];
+
+  const variants = new Set([
+    normalized,
+    normalized.toLowerCase(),
+    normalized.replace(/-/g, '_'),
+    normalized.replace(/_/g, '-'),
+    normalized.replace(/\s+/g, '_'),
+    normalized.replace(/\s+/g, '-'),
+    normalized.toLowerCase().replace(/\s+/g, '_'),
+    normalized.toLowerCase().replace(/\s+/g, '-'),
+    toCanonicalKey(normalized),
+    toCanonicalKey(moduleId),
+    subId ? toCanonicalKey(subId) : '',
+    subId ? toCanonicalKey(`${moduleId}_${subId}`) : '',
+    subId ? toCanonicalKey(`${moduleId}-${subId}`) : ''
+  ]);
+
+  return Array.from(variants).filter(Boolean);
+};
+
+const resolveKeyFromMap = (mapObject, moduleId, subId = '') => {
+  const keys = buildKeyCandidates(moduleId, subId);
+  return keys.find((key) => Object.prototype.hasOwnProperty.call(mapObject || {}, key)) || null;
+};
+
+
+const resolveKeyFromMapWithLegacyPrefix = (mapObject, moduleId, subId = '') => {
+  const direct = resolveKeyFromMap(mapObject, moduleId, subId);
+  if (direct) return direct;
+
+  const entries = Object.keys(mapObject || {});
+  if (entries.length === 0) return null;
+
+  const canonicalBase = toCanonicalKey(moduleId);
+  const canonicalComposite = toCanonicalKey(getCompositeKey(moduleId, subId));
+
+  const scored = entries
+    .map((key) => ({ key, canonical: toCanonicalKey(key) }))
+    .filter((item) => {
+      if (subId) {
+        return item.canonical.startsWith(`${canonicalComposite}_`) || item.canonical === canonicalComposite;
+      }
+      return item.canonical.startsWith(`${canonicalBase}_`) || item.canonical === canonicalBase;
+    })
+    .sort((a, b) => a.canonical.length - b.canonical.length || a.key.localeCompare(b.key));
+
+  return scored[0]?.key || null;
+};
+
+const formatDateToBR = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  return String(value);
+};
+
+const getTodayBR = () => formatDateToBR(new Date());
+
+const formatDateToISOInput = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (typeof value === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [day, month, year] = value.split('/');
+    return `${year}-${month}-${day}`;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return '';
+};
+
+const normalizeScannerText = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 .\/$+%\-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const buildNotebookBarcodeValue = (entry) => {
+    const compact = [
+        normalizeScannerText(entry.status).slice(0, 12),
+        normalizeScannerText(entry.marca).slice(0, 12),
+        normalizeScannerText(entry.modelo).slice(0, 18),
+        normalizeScannerText(entry.processador).slice(0, 16),
+        normalizeScannerText(entry.patrimonio).slice(0, 14),
+        normalizeScannerText(entry.serviceTag).slice(0, 14),
+        normalizeScannerText(entry.observacao).slice(0, 20)
+    ].map((item) => item.replace(/\//g, '-'));
+
+    return compact.join('/');
+};
+
+const parseNotebookBarcodeValue = (value) => {
+    const cleaned = normalizeScannerText(value);
+    const normalized = cleaned.startsWith('NB/') ? cleaned.slice(3) : cleaned;
+    const parts = normalized.split('/');
+    if (parts.length < 7) return null;
+    const [status = '', marca = '', modelo = '', processador = '', patrimonio = '', serviceTag = '', observacao = ''] = parts;
+
+    return { status, marca, modelo, processador, patrimonio, serviceTag, observacao };
+};
+
+export { sortTools, getCompositeKey, buildKeyCandidates, resolveKeyFromMap, resolveKeyFromMapWithLegacyPrefix, formatDateToBR, getTodayBR, formatDateToISOInput, normalizeScannerText, buildNotebookBarcodeValue, parseNotebookBarcodeValue };
