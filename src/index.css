@@ -1,13 +1,42 @@
+@import './styles/design-tokens.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'TOTVS';
+  src: url('https://midias-totvs.totvs.com/fonts/totvs/TOTVS-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TOTVS';
+  src: url('https://midias-totvs.totvs.com/fonts/totvs/TOTVS-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TOTVS';
+  src: url('https://midias-totvs.totvs.com/fonts/totvs/TOTVS-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'TOTVS', Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background: radial-gradient(circle at top, #f8fbff 0%, #eef3fb 45%, #e7edf8 100%);
+  color: #002233;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(0, 219, 255, 0.22) 0, transparent 38%),
+    radial-gradient(circle at 82% 18%, rgba(164, 77, 255, 0.16) 0, transparent 34%),
+    radial-gradient(circle at 50% 92%, rgba(0, 255, 212, 0.16) 0, transparent 30%),
+    linear-gradient(145deg, #f5feff 0%, #ebfbff 35%, #e5f8ff 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,6 +59,7 @@ body,
 body {
   background: inherit;
   color: inherit;
+  top: 0 !important;
 }
 
 a {
@@ -37,7 +67,18 @@ a {
 }
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 219, 255, 0.28);
+  box-shadow: 0 24px 50px -30px rgba(0, 34, 51, 0.45);
+}
+
+.goog-te-banner-frame.skiptranslate,
+iframe.goog-te-banner-frame {
+  display: none !important;
+}
+
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
 }

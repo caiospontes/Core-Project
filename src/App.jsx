@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { onSnapshot, setDoc } from 'firebase/firestore';
 
@@ -10,30 +10,100 @@ import {
   DEFAULT_CHANGELOG,
   DEFAULT_TOOLS_CONFIG,
   DEFAULT_TAGS_WITH_SESSIONS,
+  DEFAULT_INVENTORY_CONFIGS,
 } from './core/defaults';
+
+
+const isSameJSON = (a, b) => {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+};
+
+
+const normalizeToolsConfig = (loadedTools = {}) => {
+  if (!loadedTools || typeof loadedTools !== 'object') return {};
+
+  if (loadedTools.list && typeof loadedTools.list === 'object' && !Array.isArray(loadedTools.list)) {
+    return loadedTools.list;
+  }
+
+  if (Array.isArray(loadedTools.list)) {
+    return loadedTools.list.reduce((acc, item) => {
+      const key = String(item?.id || item?.key || item?.label || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      if (!key) return acc;
+      const next = { ...item };
+      delete next.id;
+      delete next.key;
+      acc[key] = next;
+      return acc;
+    }, {});
+  }
+
+  return loadedTools;
+};
+
+const mergeMissingTools = (loadedTools = {}) => {
+  const normalized = normalizeToolsConfig(loadedTools);
+  const merged = { ...normalized };
+  let changed = false;
+
+  Object.entries(DEFAULT_TOOLS_CONFIG).forEach(([toolKey, toolValue]) => {
+    if (!merged[toolKey]) {
+      merged[toolKey] = toolValue;
+      changed = true;
+    }
+  });
+
+  return { merged, changed };
+};
+
+
+const normalizeTagConfig = (rawConfig = {}) => {
+  if (!rawConfig || typeof rawConfig !== 'object') return { sessions: [] };
+
+  if (Array.isArray(rawConfig.sessions)) return rawConfig;
+
+  if (Array.isArray(rawConfig.list)) {
+    return { ...rawConfig, sessions: [{ id: 'geral', title: 'Geral', active: true, tags: rawConfig.list }] };
+  }
+
+  if (Array.isArray(rawConfig.tags)) {
+    return { ...rawConfig, sessions: [{ id: 'geral', title: 'Geral', active: true, tags: rawConfig.tags }] };
+  }
+
+  return { ...rawConfig, sessions: [] };
+};
+
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [sessionUserId, setSessionUserId] = useState(null);
 
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('core_users');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
-  });
+  const [users, setUsers] = useState(DEFAULT_USERS);
 
   useEffect(() => {
     const session = localStorage.getItem('core_session_user');
     if (session) {
-      try { const parsed = JSON.parse(session); setUser(parsed); } catch (e) { localStorage.removeItem('core_session_user'); }
+      try {
+        const parsed = JSON.parse(session);
+        if (parsed?.id && Number(parsed?.exp || 0) > Date.now()) setSessionUserId(parsed.id);
+        else localStorage.removeItem('core_session_user');
+      } catch {
+        localStorage.removeItem('core_session_user');
+      }
     }
 
-    document.title = 'CORE ERP | Operações';
+    document.title = 'CORE | Operações';
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.getElementsByTagName('head')[0].appendChild(link);
     }
-    link.href = 'https://midias-tdw.totvs.com/wp-content/uploads/2025/06/favicon-bg-light-192x192-1.png';
+    link.href = 'https://marca.totvs.com/wp-content/themes/marca-totvs/public/app/images/favicon/favicon.ff65d1.svg';
   }, []);
 
   const [templates, setTemplates] = useState({});
@@ -41,14 +111,28 @@ export default function App() {
   const [delimiters, setDelimiters] = useState(DEFAULT_DELIMITERS);
   const [changelog, setChangelog] = useState([]);
   const [toolsConfig, setToolsConfig] = useState(DEFAULT_TOOLS_CONFIG);
-  const [systemSettings, setSystemSettings] = useState({ devBypass: true });
+  const [systemSettings, setSystemSettings] = useState({ devBypass: false });
   const [cepMappings, setCepMappings] = useState([]);
+  const [correiosPresets, setCorreiosPresets] = useState([]);
+  const [inventoryConfigs, setInventoryConfigs] = useState(DEFAULT_INVENTORY_CONFIGS);
   const [dbReady, setDbReady] = useState(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (user) localStorage.setItem('core_session_user', JSON.stringify(user));
-    else localStorage.removeItem('core_session_user');
+    if (user?.id) {
+      const exp = Date.now() + (8 * 60 * 60 * 1000);
+      localStorage.setItem('core_session_user', JSON.stringify({ id: user.id, exp }));
+    } else {
+      localStorage.removeItem('core_session_user');
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (!sessionUserId || !users?.length) return;
+    const matched = users.find((u) => u.id === sessionUserId && u.active);
+    if (matched) setUser(matched);
+    setSessionUserId(null);
+  }, [sessionUserId, users]);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (authUser) => {
@@ -63,13 +147,29 @@ export default function App() {
 
   useEffect(() => {
     if (!dbReady) return;
+    setInitialDataLoaded(false);
+    const loadState = {
+      users: false,
+      templates: false,
+      tags: false,
+      settings: false,
+      changelog: false,
+    };
+    const markLoaded = (key) => {
+      loadState[key] = true;
+      if (Object.values(loadState).every(Boolean)) setInitialDataLoaded(true);
+    };
+
     const unsubUsers = onSnapshot(getCollectionRef('users'), (snap) => {
       const loaded = []; snap.forEach((doc) => loaded.push(doc.data()));
       if (loaded.length === 0) DEFAULT_USERS.forEach((u) => setDoc(getDocRef('users', u.id), u));
-      else setUsers(loaded);
+      else setUsers((prev) => (isSameJSON(prev, loaded) ? prev : loaded));
+      markLoaded('users');
     }, () => {});
     const unsubTemplates = onSnapshot(getCollectionRef('templates'), (snap) => {
-      const loaded = {}; snap.forEach((doc) => { loaded[doc.id] = doc.data(); }); setTemplates(loaded);
+      const loaded = {}; snap.forEach((doc) => { loaded[doc.id] = doc.data(); });
+      setTemplates((prev) => (isSameJSON(prev, loaded) ? prev : loaded));
+      markLoaded('templates');
     }, () => {});
     const unsubTags = onSnapshot(getCollectionRef('tags'), (snap) => {
       const loaded = {}; snap.forEach((doc) => { loaded[doc.id] = doc.data(); });
@@ -78,35 +178,79 @@ export default function App() {
       } else {
         const migrated = {};
         Object.keys(loaded).forEach((k) => {
-          if (loaded[k].list) {
-            migrated[k] = { sessions: [{ id: 'geral', title: 'Geral', active: true, tags: loaded[k].list }] };
-          } else {
-            migrated[k] = loaded[k];
-          }
+          migrated[k] = normalizeTagConfig(loaded[k]);
         });
-        setTagsConfig(migrated);
+        setTagsConfig((prev) => (isSameJSON(prev, migrated) ? prev : migrated));
       }
+      markLoaded('tags');
     }, () => {});
     const unsubSettings = onSnapshot(getCollectionRef('settings'), (snap) => {
+      let hasTools = false;
+      let hasInventories = false;
       snap.forEach((doc) => {
-        if (doc.id === 'delimiters') setDelimiters(doc.data());
-        if (doc.id === 'tools') setToolsConfig(doc.data());
-        if (doc.id === 'config') setSystemSettings(doc.data());
-        if (doc.id === 'cepMappings') setCepMappings(doc.data().list || []);
+        if (doc.id === 'delimiters') setDelimiters((prev) => (isSameJSON(prev, doc.data()) ? prev : doc.data()));
+        if (doc.id === 'tools') {
+          const { merged, changed } = mergeMissingTools(doc.data());
+          setToolsConfig((prev) => (isSameJSON(prev, merged) ? prev : merged));
+          if (changed) setDoc(getDocRef('settings', 'tools'), merged);
+          hasTools = true;
+        }
+        if (doc.id === 'config') { const next = doc.data(); setSystemSettings((prev) => (isSameJSON(prev, next) ? prev : next)); }
+        if (doc.id === 'cepMappings') { const next = doc.data().list || []; setCepMappings((prev) => (isSameJSON(prev, next) ? prev : next)); }
+        if (doc.id === 'correiosAddressBook') { const next = doc.data().list || []; setCorreiosPresets((prev) => (isSameJSON(prev, next) ? prev : next)); }
+        if (doc.id === 'inventories') { const next = doc.data().list || DEFAULT_INVENTORY_CONFIGS; setInventoryConfigs((prev) => (isSameJSON(prev, next) ? prev : next)); hasInventories = true; }
       });
-      if (snap.empty) {
-        setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
-      }
+      if (!hasTools) setDoc(getDocRef('settings', 'tools'), DEFAULT_TOOLS_CONFIG);
+      if (!hasInventories) setDoc(getDocRef('settings', 'inventories'), { list: DEFAULT_INVENTORY_CONFIGS });
+      markLoaded('settings');
     });
     const unsubChangelog = onSnapshot(getCollectionRef('changelog'), (snap) => {
       const loaded = []; snap.forEach((doc) => loaded.push(doc.data()));
       if (loaded.length === 0) DEFAULT_CHANGELOG.forEach((l) => setDoc(getDocRef('changelog', l.id), l));
-      else setChangelog(loaded.sort((a, b) => b.id - a.id));
+      else {
+        const sorted = loaded.sort((a, b) => b.id - a.id);
+        setChangelog((prev) => (isSameJSON(prev, sorted) ? prev : sorted));
+      }
+      markLoaded('changelog');
     }, () => {});
     return () => { unsubUsers(); unsubTemplates(); unsubTags(); unsubSettings(); unsubChangelog(); };
   }, [dbReady]);
 
+  const handleLogout = useCallback(() => setUser(null), []);
+
+  const dashboardProps = useMemo(() => ({
+    user,
+    onLogout: handleLogout,
+    users,
+    setUsers,
+    templates,
+    setTemplates,
+    tagsConfig,
+    setTagsConfig,
+    delimiters,
+    setDelimiters,
+    changelog,
+    setChangelog,
+    toolsConfig,
+    setToolsConfig,
+    systemSettings,
+    cepMappings,
+    correiosPresets,
+    inventoryConfigs,
+  }), [user, handleLogout, users, templates, tagsConfig, delimiters, changelog, toolsConfig, systemSettings, cepMappings, correiosPresets, inventoryConfigs]);
+
+  if (user && !initialDataLoaded) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-[radial-gradient(circle_at_50%_-10%,rgba(97,218,251,0.16)_0,transparent_38%),radial-gradient(circle_at_10%_20%,rgba(59,130,246,0.22)_0,transparent_38%),linear-gradient(165deg,#020817_0%,#071739_45%,#041126_100%)]">
+        <div className="rounded-2xl px-8 py-6 border border-cyan-300/25 bg-slate-900/70 backdrop-blur text-center shadow-xl">
+          <p className="text-sm font-semibold text-slate-100">Sincronizando dados do ambiente...</p>
+          <p className="text-xs text-slate-300 mt-1">Carregando módulos, templates e configurações.</p>
+        </div>
+      </div>
+    );
+  }
+
   return user
-    ? <Dashboard user={user} onLogout={() => setUser(null)} users={users} setUsers={setUsers} templates={templates} setTemplates={setTemplates} tagsConfig={tagsConfig} setTagsConfig={setTagsConfig} delimiters={delimiters} setDelimiters={setDelimiters} changelog={changelog} setChangelog={setChangelog} toolsConfig={toolsConfig} setToolsConfig={setToolsConfig} systemSettings={systemSettings} cepMappings={cepMappings} />
+    ? <Dashboard {...dashboardProps} />
     : <LoginPage onLogin={setUser} users={users} dbReady={dbReady} systemSettings={systemSettings} />;
 }
